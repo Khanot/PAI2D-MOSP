@@ -1,0 +1,118 @@
+{
+    "name": "Test",
+    "nbClasses": 4,
+    "vertices": [
+        "V7",
+        "V4",
+        "V5",
+        "V6",
+        "V1",
+        "V2",
+        "V0",
+        "V3"
+    ],
+    "edges": [
+        {
+            "from": "V4",
+            "to": "V7",
+            "dist": 36,
+            "classe": "C"
+        },
+        {
+            "from": "V4",
+            "to": "V0",
+            "dist": 41,
+            "classe": "A"
+        },
+        {
+            "from": "V7",
+            "to": "V6",
+            "dist": 11,
+            "classe": "C"
+        },
+        {
+            "from": "V3",
+            "to": "V7",
+            "dist": 37,
+            "classe": "B"
+        },
+        {
+            "from": "V7",
+            "to": "V5",
+            "dist": 22,
+            "classe": "B"
+        },
+        {
+            "from": "V2",
+            "to": "V1",
+            "dist": 6,
+            "classe": "C"
+        },
+        {
+            "from": "V7",
+            "to": "V1",
+            "dist": 37,
+            "classe": "C"
+        },
+        {
+            "from": "V2",
+            "to": "V0",
+            "dist": 10,
+            "classe": "A"
+        },
+        {
+            "from": "V6",
+            "to": "V0",
+            "dist": 4,
+            "classe": "A"
+        },
+        {
+            "from": "V3",
+            "to": "V6",
+            "dist": 29,
+            "classe": "C"
+        },
+        {
+            "from": "V6",
+            "to": "V3",
+            "dist": 24,
+            "classe": "D"
+        },
+        {
+            "from": "V6",
+            "to": "V4",
+            "dist": 22,
+            "classe": "A"
+        },
+        {
+            "from": "V6",
+            "to": "V5",
+            "dist": 42,
+            "classe": "D"
+        },
+        {
+            "from": "V3",
+            "to": "V5",
+            "dist": 24,
+            "classe": "D"
+        },
+        {
+            "from": "V6",
+            "to": "V2",
+            "dist": 16,
+            "classe": "A"
+        },
+        {
+            "from": "V2",
+            "to": "V3",
+            "dist": 1,
+            "classe": "C"
+        },
+        {
+            "from": "V5",
+            "to": "V1",
+            "dist": 28,
+            "classe": "A"
+        }
+    ]
+}
