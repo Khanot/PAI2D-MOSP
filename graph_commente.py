@@ -38,7 +38,7 @@ class Vertex:
                     return (x, int(l[i:j]))
             j+=1
 
-    def addLabel(self, label: Label, direction: int) -> None: 
+    def addLabel(self, label, direction: int) -> None: 
         '''
         Ajoute un label à la liste des labels du sommet.
         (Dijkstra MO bi-directionnel)
@@ -74,7 +74,7 @@ class Edge:
 
 class Label:
 
-    def __init__(self, vertex: Vertex, cost_vector: List[float], previous_label: Label, code: int):
+    def __init__(self, vertex: Vertex, cost_vector: List[float], previous_label, code: int):
         self.vertex = vertex
         self.vector = cost_vector
         self.prev_label = previous_label
@@ -194,6 +194,7 @@ class Graph:
             self.adj[0][v] = set()
             self.adj[1][v] = set()
         return v 
+    
 
     def add_edge(self, namev1: str, namev2: str, dist: float, classe: str) -> None:
         '''

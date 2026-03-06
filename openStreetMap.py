@@ -1,6 +1,6 @@
 #Telecharger depuis https://download.geofabrik.de/europe/france/ (ile-de-france-260216.osm.pbf)
 #pip intall osmnx
-from graph_commente import *
+from graph_commente1 import *
 import osmnx as ox
 
 
@@ -90,8 +90,21 @@ def convert_osmnx_to_custom_graph(G_osm, name="OSM_graph", nbClasses=11):
 
     return custom
 
-
+"""
 G_osm = ox.graph_from_place("Paris, France", network_type="bike")
 
 G_custom = convert_osmnx_to_custom_graph(G_osm)
-G_custom.affiche_dico_adj()
+
+
+G_custom.save_to_json("testGraphe.json")
+"""
+
+G=load_from_json("GrapheParis.json")
+G.affiche_dico_adj()
+V1=G.search_vertex("48.85445,2.37223")
+V2=next(iter(G.adj[0][V1])).vertices[1]
+V3=next(iter(G.adj[0][V2])).vertices[1]
+print(G.distance_a_vol_d_oiseau(V1,V2))
+print(G.DijkstraMultiObjBidirectionnelSeuil(V1,V2,100))
+
+print("END")

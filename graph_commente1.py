@@ -104,7 +104,7 @@ class Label:
         vector = self.vector
         classe = ord(edge.weight[1]) - 65 # ord('A')
         dist = edge.weight[0]
-        new_vector = np.array(vector.copy())
+        new_vector = np.array(vector.copy()).astype(float)
         new_vector[np.arange(nbClasses) <= classe] += dist
         return Label(new_vertex, list(new_vector), self, code)
     
@@ -175,7 +175,7 @@ class Graph:
         '''
         return len(self.edges)
 
-    def add_vertex(self, name: str) -> Vertex:
+    def add_vertex(self, name: str) -> Vertex :
         '''
         Ajoute un sommet à un graphe s'il n'y est pas déjà
         et le retourne.
@@ -188,6 +188,36 @@ class Graph:
             self.adj[0][v] = set()
             self.adj[1][v] = set()
         return v 
+
+    def search_vertex(self, name : str) -> Vertex | None:
+        '''
+        Renvoie le sommet dans le graphe courant de nom "name" s'il existe, sinon renvoie None
+        '''
+        for v in self.vertices:
+            if v.name==name:
+                return v
+        return None
+    
+    def distance_a_vol_d_oiseau(self,v1 : Vertex,  v2 : Vertex) -> float:
+        """
+        Renvoie la distance euclidienne entre deux sommets
+        dont les noms sont des coordonnées "lat,lon".
+        """
+
+        lat1, lon1 = map(float, v1.name.split(","))
+        lat2, lon2 = map(float, v2.name.split(","))
+
+        R = 6371000  # rayon de la Terre en mètres
+
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        dphi = math.radians(lat2 - lat1)
+        dlambda = math.radians(lon2 - lon1)
+
+        a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+        return R * c
 
     def add_edge(self, namev1: str, namev2: str, dist: float, classe: str) -> None:
         '''
@@ -356,17 +386,24 @@ class Graph:
                 print(f"\t voisin = {newLabel.vertex.name}, {newLabel.vector[0]}, code = {newLabel.code}")
                 code += 1
 
-                # Si la distance parcourue > dist_max, on n'exploite pas le label
-                if newLabel.vector[0] > dist_max: 
+                # Si la distance parcourue + distance minimale possible > dist_max, on n'exploite pas le label
+                if d==0:
+                    obj=dest
+                else:
+                    obj=source
+                dist_restante=self.distance_a_vol_d_oiseau(voisin,obj)
+                if newLabel.vector[0] + dist_restante> dist_max*(100+seuil)/100: 
                     print("\t\tdistance totale trop grande !")
                     continue
-
+                """
+                On abandonne cette idée pour l'instant
                 # Si on est sur un sommet du chemin optimal et que la distance parcourue > (1 + seuil/100)*sous-distance optimale, on n'exploite pas le label
                 if newLabel.vertex.name in chemins_opt[d]:
                     print(f"\t\tdist opt = {chemins_opt[d][newLabel.vertex.name]}, a ne pas depasser = {(1 + seuil/100)*chemins_opt[d][newLabel.vertex.name]}")
                     if newLabel.vector[0] > (1 + seuil/100)*chemins_opt[d][newLabel.vertex.name]:
                         print("\t\tdistance du sous-chemin trop grande !")
-                        continue     
+                        continue   
+                """  
                 
                 # Si le nouveau label n'est pas dominé par ceux dans la liste de voisins, on l'ajoute
                 if not newLabel.dominated_by_list(voisin.label_list[d]): 
@@ -475,24 +512,24 @@ class Graph:
         with open(filename, "w") as f:
             json.dump(data, f, indent=4)
 
-    def load_from_json(filename: str):
-        '''
-        Génère un graphe issu d'un format json.
+def load_from_json(filename: str):
+    '''
+    Génère un graphe issu d'un format json.
 
-        :param filename: nom du fichier dans lequel est enregistré le graphe
-        '''
-        with open(filename, "r") as f:
-            data = json.load(f)
+    :param filename: nom du fichier dans lequel est enregistré le graphe
+    '''
+    with open(filename, "r") as f:
+        data = json.load(f)
 
-        G = Graph(data["name"], data["nbClasses"])
+    G = Graph(data["name"], data["nbClasses"])
 
-        for v in data["vertices"]:
-            G.add_vertex(v)
+    for v in data["vertices"]:
+        G.add_vertex(v)
 
-        for e in data["edges"]:
-            G.add_edge(e["from"], e["to"], e["dist"], e["classe"])
+    for e in data["edges"]:
+        G.add_edge(e["from"], e["to"], e["dist"], e["classe"])
 
-        return G
+    return G
 
 ### PARETO DOMINANCE ###
 
@@ -719,16 +756,15 @@ def afficher_lres(lres):
 #         dest = v
 
 G = Graph("eh", 2)
-for i in range(4):
-    G.add_vertex(f"V{i+1}")
-G.add_edge("V1", "V2", 101, "A")
-G.add_edge("V1", "V3", 100, "B")
-G.add_edge("V2", "V3", 20, "A")
-G.add_edge("V3", "V4", 900, "A")
 
-for v in G.vertices:
-    if v.name == "V1":
-        source = v 
-    if v.name == "V4":
-        dest = v
-affiche_results(G.DijkstraMultiObjBidirectionnelSeuil(source, dest, 10))
+V1=G.add_vertex("48.87596,2.28708")
+V2=G.add_vertex("48.87593,2.28707")
+V3=G.add_vertex("48.8759,2.28696")
+V4=G.add_vertex("48.83602,2.42751")
+G.add_edge("48.87596,2.28708", "48.87593,2.28707", G.distance_a_vol_d_oiseau(V1,V2), "A")
+G.add_edge("48.87596,2.28708", "48.8759,2.28696",G.distance_a_vol_d_oiseau(V1,V3), "B")
+G.add_edge("48.87593,2.28707", "48.8759,2.28696", G.distance_a_vol_d_oiseau(V2,V3), "A")
+G.add_edge("48.8759,2.28696", "48.83602,2.42751", G.distance_a_vol_d_oiseau(V3,V4), "A")
+
+
+#affiche_results(G.DijkstraMultiObjBidirectionnelSeuil(V1,V4, 10))
