@@ -360,7 +360,7 @@ class Graph:
         d: int = 1 # direction
         if verbose:
             print("chemin optimal =", chemins_opt)
-        while not (stop(T, Lres)): # stop est la condition d'arrêt implantée plus tard
+        while not stop3(T, Lres, self, dest, source): # stop est la condition d'arrêt implantée plus tard
             d = 1-d # changement de direction
             if verbose:
                 afficher_T(T,d)
@@ -592,6 +592,52 @@ def stop(T, Lres):
     labTmin = Label(None, Tmin, None, -1)
     Lres_labels = np.array([Label(None, vect, None, -1) for (_, vect,_ , _) in Lres])
     return labTmin.dominated_by_list(Lres_labels) 
+
+def stop2(T, Lres):
+    TF, TB = T[0], T[1]
+
+    if not TF or not TB:
+        return True
+
+    if not Lres:
+        return False
+
+    # Borne inférieure uniquement sur TB
+    TminB = np.min(np.array([vecteur[0] for vecteur in TB]), axis=0)
+    Lres_labels = [Label(None, vect, None, -1) for (_, vect, _, _) in Lres]
+
+    # Pour chaque label forward, vérifier si lF + TminB est dominé
+    for (vect, _, _) in TF:
+        combined = Label(None, list(np.array(vect) + TminB), None, -1)
+        if not combined.dominated_by_list(Lres_labels):
+            return False  # ce label peut encore produire un chemin non dominé
+
+    return True
+
+def stop3(T, Lres, graph, dest, source):
+    TF, TB = T[0], T[1]
+
+    if not TF or not TB:
+        return True
+
+    if not Lres:
+        return False
+
+    TminB = np.min(np.array([vecteur[0] for vecteur in TB]), axis=0)
+    Lres_labels = [Label(None, vect, None, -1) for (_, vect, _, _) in Lres]
+
+    for (vect, _, lbl) in TF:
+        # Crow-fly pour le 1er objectif (distance)
+        dist_restante = graph.distance_a_vol_d_oiseau(lbl.vertex, dest)
+
+        # Crow-fly pour le 1er objectif, TminB pour les objectifs de sécurité
+        combined_vec = [vect[0] + dist_restante] + [v + b for v, b in zip(vect[1:], TminB[1:])]
+        combined = Label(None, combined_vec, None, -1)
+
+        if not combined.dominated_by_list(Lres_labels):
+            return False
+
+    return True
 
 ### FONCTIONS LIEES AUX CHEMINS DANS DIJKSTRA MO BD ###
 

@@ -97,7 +97,7 @@ G_custom = convert_osmnx_to_custom_graph(G_osm)
 
 
 G_custom.save_to_json("testGraphe.json")
-"""
+
 
 G=load_from_json("GrapheParis.json")
 G.affiche_dico_adj()
@@ -108,3 +108,4 @@ print(G.distance_a_vol_d_oiseau(V1,V2))
 print(G.DijkstraMultiObjBidirectionnelSeuil(V1,V2,100))
 
 print("END")
+"""
