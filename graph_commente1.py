@@ -146,7 +146,7 @@ class Graph:
         self.edges: set[Edge] = set()
         self.adj: List[Dict[Vertex, set[Edge]], Dict[Vertex, set[Edge]]] = [dict(), dict()] # liste de successeurs, liste de prédécesseurs (donnés par les arcs)
         self.nbClasses = nbClasses # niveaux de sécurité d'un tronçon (lettres majuscules)
-
+        self._index: dict[str, Vertex] = {}  
     def copie(self): 
         '''
         Renvoie une copie du graphe.
@@ -187,16 +187,14 @@ class Graph:
             self.vertices.add(v)
             self.adj[0][v] = set()
             self.adj[1][v] = set()
-        return v 
+            self._index[name] = v
+        return self._index[name]
 
     def search_vertex(self, name : str) -> Vertex | None:
         '''
         Renvoie le sommet dans le graphe courant de nom "name" s'il existe, sinon renvoie None
         '''
-        v = Vertex(name)
-        if v in self.vertices:
-            return v
-        return None
+        return self._index.get(name)
     
     def distance_a_vol_d_oiseau(self,v1 : Vertex,  v2 : Vertex) -> float:
         """
@@ -228,13 +226,13 @@ class Graph:
         :param dist: poids de l'arc
         :param classe: classe de l'arc
         '''
-        # Récupération des vecteurs dans le graphe
+        # Récupération des vertex dans le graphe
         """
         vertex1 = next(v for v in self.vertices if v.name == namev1)
         vertex2 = next(v for v in self.vertices if v.name == namev2)
         """
-        vertex1 = Vertex(namev1)
-        vertex2 = Vertex(namev2)
+        vertex1 = self._index.get(namev1)
+        vertex2 = self._index.get(namev2)
         # Pas de boucle autorisée
         if vertex1 == vertex2:
             return
@@ -253,29 +251,19 @@ class Graph:
 
         :param name: nom du sommet à supprimer
         '''
-        # Retrouver le sommet à supprimer
-        vertex = Vertex(name)
-        if vertex not in self.vertices:
-            return #le sommet n'est déjà pas dans le graphe
+        vertex = self._index.get(name)
+        if vertex is None:
+            return
 
-        # Mettre à jour l'ensemble des arcs
-        self.edges = {e for e in self.edges if vertex not in e.vertices} 
+        self.edges = {e for e in self.edges if vertex not in e.vertices}
 
-        # Construction des nouveaux dictionnaires d'adjacence
-        new_adj = [{sommet:set() for sommet in self.adj[0]}, {sommet:set() for sommet in self.adj[1]}]
+        self.adj[0] = {v: {e for e in edges if e in self.edges}
+                    for v, edges in self.adj[0].items() if v != vertex}
+        self.adj[1] = {v: {e for e in edges if e in self.edges}
+                    for v, edges in self.adj[1].items() if v != vertex}
 
-        for sommet, ens in self.adj[0]:
-            for e in ens:
-                if e not in self.edges:
-                    new_adj[0][sommet].remove(e)
-
-        for sommet, ens in self.adj[1]:
-            for e in ens:
-                if e not in self.edges:
-                    new_adj[1][sommet].remove(e)
-
-        # Retirer le sommet de l'ensemble des sommets
         self.vertices.remove(vertex)
+        del self._index[name]
 
     def delete_vertices(self, name_list: List[str]) -> None: 
         '''
@@ -292,7 +280,7 @@ class Graph:
 
         :param sens: 1 si degrés sortants, 0 si degrés entrants
         '''
-        return [(v, len(neighbors)) for (v, neighbors) in self.adj[sens]]
+        return [(v, len(neighbors)) for (v, neighbors) in self.adj[sens].items()]
 
 
     def max_degre(self, sens: int) -> str:
@@ -302,7 +290,8 @@ class Graph:
         :param sens: 1 si degrés sortants, 0 si degrés entrants
         '''
         deg = self.degres(sens)
-        return [x for x in deg if x[1] == max([lenNeighbors[1] for lenNeighbors in deg])][0][0].name
+        m = max(d[1] for d in deg)
+        return next(x[0].name for x in deg if x[1] == m)
 
     def affiche_dico_adj(self) -> None:
         '''
@@ -341,7 +330,7 @@ class Graph:
         return [e for e in self.adj[dir][vertex]]
     
 
-    def DijkstraMultiObjBidirectionnel(self, source: Vertex, dest: Vertex, dist_max: float = math.inf, chemins_opt: List = [dict(), dict()], seuil: float = math.inf) -> List:
+    def DijkstraMultiObjBidirectionnel(self, source: Vertex, dest: Vertex, dist_max: float = math.inf, chemins_opt: List = [dict(), dict()], seuil: float = math.inf, verbose = False) -> List:
         '''
         Applique l'algorithme de Dijkstra multi-objectif bi-directionnel
         pour récupérer l'ensemble des chemins Pareto-optimaux 
@@ -369,16 +358,19 @@ class Graph:
         dest.addLabel(destLabel, 1)
         heapq.heappush(T[1], (destLabel.vector, destLabel.code, destLabel))
         d: int = 1 # direction
-        print("chemin optimal =", chemins_opt)
+        if verbose:
+            print("chemin optimal =", chemins_opt)
         while not (stop(T, Lres)): # stop est la condition d'arrêt implantée plus tard
             d = 1-d # changement de direction
-            afficher_T(T,d)
+            if verbose:
+                afficher_T(T,d)
             # Récupération d'un label dans T[d]
             _, _, label = heapq.heappop(T[d])
 
             # Récupération du sommet courant et de ses arcs (entrants ou sortants en fonction de la direction)
             owner: Vertex = label.vertex
-            print("Sommet courant =", owner.name, " direction =", d, "code =", label.code)
+            if verbose:
+                print("Sommet courant =", owner.name, " direction =", d, "code =", label.code)
             neighbors: List[Edge] = self.getNeighbors(owner, d)
 
             # Parcours des voisins
@@ -386,7 +378,8 @@ class Graph:
             for e in neighbors:
                 voisin = e.vertices[1-d] # récupération du voisin
                 newLabel = label.succ_label(voisin, e, self.nbClasses, code)
-                print(f"\t voisin = {newLabel.vertex.name}, {newLabel.vector[0]}, code = {newLabel.code}")
+                if verbose:
+                    print(f"\t voisin = {newLabel.vertex.name}, {newLabel.vector[0]}, code = {newLabel.code}")
                 code += 1
 
                 # Si la distance parcourue + distance minimale possible > dist_max, on n'exploite pas le label
@@ -418,10 +411,12 @@ class Graph:
                         # print("\tbizarre", voisin.name, voisin.label_list[1-d])
                         for c in newLabel.combine(voisin.label_list[1-d], d, dist_max, seuil, chemins_opt[1-d], e.weight[0]):
                             addResults(c, Lres)
-                afficher_lres(Lres)
+                if verbose:
+                    afficher_lres(Lres)
             # print("lres", Lres)
             # print("apres", T[d])
-            print("---")
+            if verbose:
+                print("---")
 
         return Lres
 
@@ -455,8 +450,8 @@ class Graph:
         # for e in copie_graphe.edges:
         #     print("sommet 1 : ", e.vertices[0].name, id(e.vertices[0]), "| sommet 2 : ", e.vertices[1].name,  id(e.vertices[1]), "| poids :", e.weight)
 
-        oriA: Vertex = next(v for v in copie_graphe.vertices if v.name == source.name)
-        destA: Vertex = next(v for v in copie_graphe.vertices if v.name == dest.name)
+        oriA = copie_graphe._index[source.name]
+        destA = copie_graphe._index[dest.name]
 
         for e in copie_graphe.edges: 
             e.weight = (e.weight[0], 'A')
@@ -489,7 +484,7 @@ class Graph:
         # Appliquer Dijkstra MO avec la distance à ne pas dépasser 
         distance_max: float = (1 + seuil/100) * distance 
         print("------------ APPEL BI ---------------")
-        return self.DijkstraMultiObjBidirectionnel(source, dest, distance_max, chemins_opt, seuil)
+        return self.DijkstraMultiObjBidirectionnel(source, dest, distance_max, chemins_opt, seuil, verbose=False)
 
     def save_to_json(self, filename: str):
         '''
@@ -757,7 +752,7 @@ def afficher_lres(lres):
 #         source = v 
 #     if v.name == "V2":
 #         dest = v
-'''
+
 G = Graph("eh", 2)
 
 V1=G.add_vertex("48.87596,2.28708")
@@ -768,7 +763,7 @@ G.add_edge("48.87596,2.28708", "48.87593,2.28707", G.distance_a_vol_d_oiseau(V1,
 G.add_edge("48.87596,2.28708", "48.8759,2.28696",G.distance_a_vol_d_oiseau(V1,V3), "B")
 G.add_edge("48.87593,2.28707", "48.8759,2.28696", G.distance_a_vol_d_oiseau(V2,V3), "A")
 G.add_edge("48.8759,2.28696", "48.83602,2.42751", G.distance_a_vol_d_oiseau(V3,V4), "A")
-'''
+
 #48° 50′ 46″ nord, 2° 21′ 21″ est Place Jussieu
 #48.857362, 2.306119 Rue Cler
-#affiche_results(G.DijkstraMultiObjBidirectionnelSeuil(V1,V4, 10))
+affiche_results(G.DijkstraMultiObjBidirectionnelSeuil(V1,V4, 10))
