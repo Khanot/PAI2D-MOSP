@@ -193,9 +193,9 @@ class Graph:
         '''
         Renvoie le sommet dans le graphe courant de nom "name" s'il existe, sinon renvoie None
         '''
-        for v in self.vertices:
-            if v.name==name:
-                return v
+        v = Vertex(name)
+        if v in self.vertices:
+            return v
         return None
     
     def distance_a_vol_d_oiseau(self,v1 : Vertex,  v2 : Vertex) -> float:
@@ -229,9 +229,12 @@ class Graph:
         :param classe: classe de l'arc
         '''
         # Récupération des vecteurs dans le graphe
+        """
         vertex1 = next(v for v in self.vertices if v.name == namev1)
         vertex2 = next(v for v in self.vertices if v.name == namev2)
-
+        """
+        vertex1 = Vertex(namev1)
+        vertex2 = Vertex(namev2)
         # Pas de boucle autorisée
         if vertex1 == vertex2:
             return
@@ -754,7 +757,7 @@ def afficher_lres(lres):
 #         source = v 
 #     if v.name == "V2":
 #         dest = v
-
+'''
 G = Graph("eh", 2)
 
 V1=G.add_vertex("48.87596,2.28708")
@@ -765,6 +768,7 @@ G.add_edge("48.87596,2.28708", "48.87593,2.28707", G.distance_a_vol_d_oiseau(V1,
 G.add_edge("48.87596,2.28708", "48.8759,2.28696",G.distance_a_vol_d_oiseau(V1,V3), "B")
 G.add_edge("48.87593,2.28707", "48.8759,2.28696", G.distance_a_vol_d_oiseau(V2,V3), "A")
 G.add_edge("48.8759,2.28696", "48.83602,2.42751", G.distance_a_vol_d_oiseau(V3,V4), "A")
-
-
+'''
+#48° 50′ 46″ nord, 2° 21′ 21″ est Place Jussieu
+#48.857362, 2.306119 Rue Cler
 #affiche_results(G.DijkstraMultiObjBidirectionnelSeuil(V1,V4, 10))
