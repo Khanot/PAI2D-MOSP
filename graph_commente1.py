@@ -108,7 +108,7 @@ class Label:
         new_vector[np.arange(nbClasses) <= classe] += dist
         return Label(new_vertex, list(new_vector), self, code)
     
-    def combine(self, labelListe, direction: int, dist_max: float = math.inf, seuil = math.inf, chemin_opt = dict(), poids_arete: float = math.inf) -> List: # A VECTORISER
+    def combine(self, labelListe, direction: int, dist_max: float = math.inf, seuil = math.inf, chemin_opt = dict(), poids_arete: float = math.inf,verbose=False) -> List: # A VECTORISER
         '''
         Retourne une liste des chemins combinés entre un label et une liste de labels.
         Un chemin : (label depuis source, label depuis destination, vecteur de coûts total)
@@ -128,7 +128,8 @@ class Label:
             vec_suivant = label.vector
             if vec[0] + vec_suivant[0] <= dist_max :
                 if self.vertex.name in chemin_opt:
-                    print(f"\t\t\t {self.vertex.name} combine : sous_dist_max = {(1 + seuil/100)*chemin_opt[self.vertex.name]}")
+                    if verbose:
+                        print(f"\t\t\t {self.vertex.name} combine : sous_dist_max = {(1 + seuil/100)*chemin_opt[self.vertex.name]}")
                     # if (1 + seuil/100)*chemin_opt[self.vertex.name] >= poids_arete + vec_suivant[0]: 
                 vecteurs_cout_finaux.append([vec[j] + vec_suivant[j] for j in range(nb_dim)])
 
@@ -330,7 +331,7 @@ class Graph:
         return [e for e in self.adj[dir][vertex]]
     
 
-    def DijkstraMultiObjBidirectionnel(self, source: Vertex, dest: Vertex, dist_max: float = math.inf, chemins_opt: List = [dict(), dict()], seuil: float = math.inf, verbose = False) -> List:
+    def DijkstraMultiObjBidirectionnel(self, source: Vertex, dest: Vertex,condition_darret=None, dist_max: float = math.inf, chemins_opt: List = [dict(), dict()], seuil: float = math.inf, verbose = False) -> List:
         '''
         Applique l'algorithme de Dijkstra multi-objectif bi-directionnel
         pour récupérer l'ensemble des chemins Pareto-optimaux 
@@ -360,7 +361,7 @@ class Graph:
         d: int = 1 # direction
         if verbose:
             print("chemin optimal =", chemins_opt)
-        while not stop3(T, Lres, self, dest, source): # stop est la condition d'arrêt implantée plus tard
+        while not condition_darret(T, Lres, self, dest): # stop est la condition d'arrêt implantée plus tard
             d = 1-d # changement de direction
             if verbose:
                 afficher_T(T,d)
@@ -389,7 +390,8 @@ class Graph:
                     obj=source
                 dist_restante=self.distance_a_vol_d_oiseau(voisin,obj)
                 if newLabel.vector[0] + dist_restante> dist_max*(100+seuil)/100: 
-                    print("\t\tdistance totale trop grande !")
+                    if verbose:
+                        print("\t\tdistance totale trop grande !")
                     continue
                 """
                 On abandonne cette idée pour l'instant
@@ -420,7 +422,7 @@ class Graph:
 
         return Lres
 
-    def DijkstraMultiObjBidirectionnelSeuil(self, source: Vertex, dest: Vertex, seuil: float) -> List: 
+    def DijkstraMultiObjBidirectionnelSeuil(self, source: Vertex, dest: Vertex,condition_darret, seuil: float) -> List: 
         '''
         Applique l'algorithme de Dijkstra multi-objectif bi-directionnel
         pour récupérer l'ensemble des chemins Pareto-optimaux 
@@ -456,7 +458,7 @@ class Graph:
         for e in copie_graphe.edges: 
             e.weight = (e.weight[0], 'A')
         print("------------ APPEL MONO ---------------")
-        liste_distance = copie_graphe.DijkstraMultiObjBidirectionnel(oriA, destA)
+        liste_distance = copie_graphe.DijkstraMultiObjBidirectionnel(oriA, destA,condition_darret)
         
         # print("APRES MONO")
         # print("Graphe :")
@@ -484,7 +486,7 @@ class Graph:
         # Appliquer Dijkstra MO avec la distance à ne pas dépasser 
         distance_max: float = (1 + seuil/100) * distance 
         print("------------ APPEL BI ---------------")
-        return self.DijkstraMultiObjBidirectionnel(source, dest, distance_max, chemins_opt, seuil, verbose=False)
+        return self.DijkstraMultiObjBidirectionnel(source, dest,condition_darret, distance_max, chemins_opt, seuil, verbose=False)
 
     def save_to_json(self, filename: str):
         '''
@@ -566,7 +568,7 @@ def dominated_in_list(v, liste_v):
 
 ### CONDITION D'ARRET DANS DIJKSTRA MO BD ###
 
-def stop(T, Lres):
+def stop(T, Lres,graph,dest):
     '''
     Retourne True si Tmin est dominé par au moins un chemin de Lres,
     False sinon.
@@ -593,7 +595,7 @@ def stop(T, Lres):
     Lres_labels = np.array([Label(None, vect, None, -1) for (_, vect,_ , _) in Lres])
     return labTmin.dominated_by_list(Lres_labels) 
 
-def stop2(T, Lres):
+def stop2(T, Lres,graph,dest):
     TF, TB = T[0], T[1]
 
     if not TF or not TB:
@@ -614,7 +616,7 @@ def stop2(T, Lres):
 
     return True
 
-def stop3(T, Lres, graph, dest, source):
+def stop3(T, Lres, graph, dest):
     TF, TB = T[0], T[1]
 
     if not TF or not TB:
@@ -638,6 +640,60 @@ def stop3(T, Lres, graph, dest, source):
             return False
 
     return True
+
+
+def stop4(T, Lres, graph, dest):
+    """
+    Arrête la recherche si toutes les combinaisons possibles
+    (label forward + borne vol d'oiseau + label backward)
+    sont déjà dominées par un chemin de Lres.
+
+    :param T: [TF, TB]
+    :param Lres: liste des chemins Pareto-optimaux trouvés
+    :param graph: graphe avec distance_a_vol_d_oiseau(u, dest)
+    :param dest: sommet destination
+    """
+    TF, TB = T[0], T[1]
+
+    # Plus rien à explorer d'un côté
+    if not TF or not TB:
+        return True
+
+    # Aucun résultat trouvé => on ne peut pas pruner
+    if not Lres:
+        return False
+
+    Lres_labels = [
+        Label(None, vect, None, -1)
+        for (_, vect, _, _) in Lres
+    ]
+
+    # Pour chaque combinaison forward/backward
+    for (vectF, _, lblF) in TF:
+
+        # Borne vol d'oiseau pour le premier objectif
+        crow = graph.distance_a_vol_d_oiseau(lblF.vertex, dest)
+
+        for (vectB, _, _) in TB:
+
+            # On remplace le premier objectif backward
+            # par la borne vol d'oiseau si elle est plus optimiste
+            first_obj = vectF[0] + min(crow, vectB[0])
+
+            combined_vec = [first_obj] + [
+                f + b for f, b in zip(vectF[1:], vectB[1:])
+            ]
+
+            combined = Label(None, combined_vec, None, -1)
+
+            # S'il existe UNE combinaison non dominée,
+            # il faut continuer la recherche
+            if not combined.dominated_by_list(Lres_labels):
+                return False
+
+    # Toutes les combinaisons sont dominées
+    return True
+
 
 ### FONCTIONS LIEES AUX CHEMINS DANS DIJKSTRA MO BD ###
 
@@ -798,7 +854,7 @@ def afficher_lres(lres):
 #         source = v 
 #     if v.name == "V2":
 #         dest = v
-
+"""
 G = Graph("eh", 2)
 
 V1=G.add_vertex("48.87596,2.28708")
@@ -813,3 +869,4 @@ G.add_edge("48.8759,2.28696", "48.83602,2.42751", G.distance_a_vol_d_oiseau(V3,V
 #48° 50′ 46″ nord, 2° 21′ 21″ est Place Jussieu
 #48.857362, 2.306119 Rue Cler
 affiche_results(G.DijkstraMultiObjBidirectionnelSeuil(V1,V4, 10))
+"""
