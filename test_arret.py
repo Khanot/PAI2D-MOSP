@@ -85,6 +85,7 @@ plt.ylabel("Temps d'exécution (s)")
 plt.title("Temps d'exécution selon la distance (distance <= 2 km)")
 plt.legend()
 plt.grid(True)
+plt.savefig("graphiques/temps_execution_tous.png", dpi=300, bbox_inches="tight")
 plt.show()
 
 # --- Courbe moyenne par tranches de distance ---
@@ -112,4 +113,53 @@ plt.ylabel("Temps moyen d'exécution (s)")
 plt.title("Temps moyen d'exécution selon la distance (<= 2 km)")
 plt.legend()
 plt.grid(True)
+plt.savefig("graphiques/temps_moyen_tous.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+
+# --- Même graphiques mais sans stop4 ---
+results_sans_stop4 = {
+    nom: data
+    for nom, data in results.items()
+    if nom != "stop4"
+}
+
+# Nuage de points
+plt.figure(figsize=(10, 6))
+
+for nom, data in results_sans_stop4.items():
+    distances = [d for d, _ in data]
+    times = [t for _, t in data]
+
+    plt.scatter(distances, times, alpha=0.5, label=nom)
+
+plt.xlabel("Distance à vol d'oiseau entre source et destination (m)")
+plt.ylabel("Temps d'exécution (s)")
+plt.title("Temps d'exécution selon la distance (sans stop4)")
+plt.legend()
+plt.grid(True)
+plt.savefig("graphiques/temps_execution_sans_stop4.png", dpi=300, bbox_inches="tight")
+plt.show()
+
+# Courbe moyenne par tranches
+plt.figure(figsize=(10, 6))
+
+for nom, data in results_sans_stop4.items():
+    bins = defaultdict(list)
+
+    for dist, t in data:
+        k = BIN_SIZE * int(dist // BIN_SIZE)
+        bins[k].append(t)
+
+    xs = sorted(bins.keys())
+    ys = [sum(bins[x]) / len(bins[x]) for x in xs]
+
+    plt.plot(xs, ys, marker="o", label=nom)
+
+plt.xlabel(f"Distance (tranches de {BIN_SIZE} m)")
+plt.ylabel("Temps moyen d'exécution (s)")
+plt.title("Temps moyen d'exécution selon la distance (sans stop4)")
+plt.legend()
+plt.grid(True)
+plt.savefig("graphiques/temps_moyen_sans_stop4.png", dpi=300, bbox_inches="tight")
 plt.show()
