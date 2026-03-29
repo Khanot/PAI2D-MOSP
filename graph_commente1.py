@@ -148,6 +148,15 @@ class Graph:
         self.adj: List[Dict[Vertex, set[Edge]], Dict[Vertex, set[Edge]]] = [dict(), dict()] # liste de successeurs, liste de prédécesseurs (donnés par les arcs)
         self.nbClasses = nbClasses # niveaux de sécurité d'un tronçon (lettres majuscules)
         self._index: dict[str, Vertex] = {}  
+
+    def reset_labels(self) -> None:
+        """
+        Réinitialise les listes de labels forward et backward
+        de tous les sommets du graphe.
+        """
+        for vertex in self.vertices:
+            vertex.label_list = [[], []]
+
     def copie(self): 
         '''
         Renvoie une copie du graphe.
@@ -419,7 +428,7 @@ class Graph:
             # print("apres", T[d])
             if verbose:
                 print("---")
-
+        self.reset_labels()
         return Lres
 
     def DijkstraMultiObjBidirectionnelSeuil(self, source: Vertex, dest: Vertex,condition_darret, seuil: float) -> List: 
