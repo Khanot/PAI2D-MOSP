@@ -1,4 +1,5 @@
 const map = L.map("map").setView([48.8566, 2.3522], 13);
+
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "© OpenStreetMap"
 }).addTo(map);
@@ -6,6 +7,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 let source = null, dest = null;
 let srcMarker = null, dstMarker = null;
 let routeLayers = [];
+let monoLayer = [];
 let allMarkers = L.layerGroup().addTo(map);
 const renderer = L.canvas({ padding: 0.5 });
 
@@ -56,31 +58,42 @@ function calculer() {
         body: JSON.stringify({ source: source.name, dest: dest.name, seuil })
     })
     .then(r => r.json())
-    .then(chemins => {
-        if (chemins.error) {
-            document.getElementById("status").textContent = "Erreur : " + chemins.error;
-            return;
-        }
-        console.log(chemins[0]);
-        chemins.forEach((chemin, i) => {
-            const color = i === 0 ? "blue" : "orange";
-            const coords = chemin.coords.map(c => [c.lat, c.lon]);
-            const line = L.polyline(coords, { color, weight: 4, opacity: 0.8 })
-                .bindTooltip(`${chemin.distance_km} km`, { sticky: true })
-                .addTo(map);
-            routeLayers.push(line);
-        });
-        map.fitBounds(routeLayers[0].getBounds());
-        document.getElementById("status").textContent =
-            `${chemins.length} chemin(s) Pareto-opt trouvé(s).`;
-            
-    // Affiche la distance du chemin proposé 
-    map.fitBounds(routeLayers[0].getBounds());
-    document.getElementById("status").textContent =
-        `${chemins.length} chemin(s) Pareto-opt trouvé(s).`;
-    document.getElementById("distance-info").textContent =
-        `Chemin proposé : ${chemins[0].distance_km} km`;
+    .then(data => {
+    if (data.error) {
+        document.getElementById("status").textContent = "Erreur : " + data.error;
+        return;
+    }
+
+    const chemins = data.chemins;
+    window.cheminsList = chemins.sort((a, b) => a.distance_km - b.distance_km);
+
+    // Afficher le chemin mono en violet
+    if (data.mono && data.mono.coords.length > 0) {
+        const monoCoords = data.mono.coords.map(c => [c.lat, c.lon]);
+        const monoLine = L.polyline(monoCoords, { color: "purple", weight: 4, opacity: 0.9 })
+            .bindTooltip(" Plus court chemin 1 cat", { sticky: true })
+            .addTo(map);
+        monoLayer.push(monoLine);
+    }
+
+    // Construire la liste
+    const container = document.getElementById("chemins-list");
+    container.innerHTML = `<b>${chemins.length} chemin(s) trouvé(s) :</b>`;
+    chemins.forEach((chemin, i) => {
+        const item = document.createElement("div");
+        item.className = "chemin-item";
+        item.id = `chemin-${i}`;
+        item.innerHTML = `
+            <div class="distance">Chemin ${i + 1} — ${chemin.distance_km} km</div>
+            <div class="vecteur">[${chemin.vecteur.map(v => v.toFixed(1)).join(", ")}]</div>
+        `;
+        item.onclick = () => afficherChemin(i);
+        container.appendChild(item);
     });
+
+    document.getElementById("status").textContent = "Sélectionnez un chemin.";
+    document.getElementById("distance-info").textContent = "";
+});
 }
 
 function clearRoutes() {
@@ -99,7 +112,12 @@ function resetSelection() {
     document.getElementById("distance-info").textContent = "";
     document.getElementById("search-src").value = "";
     document.getElementById("search-dst").value = "";
+    document.getElementById("chemins-list").innerHTML = "";
     clearRoutes();
+    if (monoLayer) { monoLayer.forEach(l => map.removeLayer(l));
+    monoLayer = []; }
+    document.getElementById("chemins-list").innerHTML = "";
+    window.cheminsList = [];
 }
 
 function setupSearch(inputId, suggestionsId, role) {
@@ -165,6 +183,25 @@ function selectFromGeocoding(lat, lon, label, role, suggestions, input) {
             document.getElementById("status").textContent = 
                 source && dest ? "Prêt à calculer !" : "Sélectionnez l'autre point.";
         });
+}
+
+function afficherChemin(index) {
+    clearRoutes();
+
+    // Désélectionner tous les items
+    document.querySelectorAll(".chemin-item").forEach(el => el.classList.remove("selected"));
+    document.getElementById(`chemin-${index}`).classList.add("selected");
+
+    const chemin = window.cheminsList[index];
+    const coords = chemin.coords.map(c => [c.lat, c.lon]);
+    const line = L.polyline(coords, { color: "blue", weight: 5, opacity: 0.9 })
+        .bindTooltip(`⭐ ${chemin.distance_km} km`, { sticky: true })
+        .addTo(map);
+    routeLayers.push(line);
+
+    map.fitBounds(line.getBounds());
+    document.getElementById("distance-info").textContent =
+        `Chemin sélectionné : ${chemin.distance_km} km`;
 }
 
 // Initialise les deux champs

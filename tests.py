@@ -41,5 +41,5 @@ origin = Vertex("48.86241,2.37252")
 dest = Vertex("48.83828,2.34562")
 
 print(G2Classes.distance_a_vol_d_oiseau(origin, dest))
-affiche_results(G2Classes.DijkstraMultiObjBidirectionnelSeuil(origin, dest, stop3, 10))
+affiche_results(G2Classes.DijkstraMultiObjBidirectionnelSeuil(origin, dest, stop3, 10)[1])
 print("END")

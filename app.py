@@ -33,10 +33,21 @@ def itineraire():
     for v in G.vertices:
         v.label_list = [[], []]
 
-    resultats = G.DijkstraMultiObjBidirectionnelSeuil(source, dest, stop3, seuil=data.get("seuil", 20))
+    mono, resultats = G.DijkstraMultiObjBidirectionnelSeuil(source, dest, stop3, seuil=data.get("seuil", 20))
 
     if not resultats:
-        return jsonify({"error": "Aucun chemin trouvé"}), 404
+            return jsonify({"error": "Aucun chemin trouvé"}), 404
+
+    mono_coords = []
+    for v in mono[0]:
+        name = v.name if hasattr(v, "name") else v
+        lat, lon = map(float, name.split(","))
+        mono_coords.append({"lat": lat, "lon": lon})
+
+    mono_data = {
+    "coords": mono_coords,
+    "distance_km": round(mono[1][0] / 1000, 2)
+    }
 
     # Retourner les chemins Pareto-optimaux
     chemins = []
@@ -46,9 +57,9 @@ def itineraire():
             name = v.name if hasattr(v, "name") else v  # gère les deux cas
             lat, lon = map(float, name.split(","))
             coords.append({"lat": lat, "lon": lon})
-            chemins.append({"coords": coords, "vecteur": vect, "distance_km": round(vect[0] / 1000, 2)})
+        chemins.append({"coords": coords, "vecteur": vect, "distance_km": round(vect[0] / 1000, 2)})
 
-    return jsonify(chemins)
+    return jsonify({"chemins": chemins, "mono": mono_data})
 
 @app.route("/nearest")
 def nearest():

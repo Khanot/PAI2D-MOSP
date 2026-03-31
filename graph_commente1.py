@@ -444,22 +444,6 @@ class Graph:
         '''
         # Appliquer Dijkstra en version mono-objectif (distance totale) pour récupérer le chemin de longueur minimale
         copie_graphe: Graph = self.copie()
-        # print("AVANT TOUT")
-        # print("Graphe :")
-        # print("\tSommets :")
-        # for v in self.vertices:
-        #     print("nom :", v.name, "| label_list :", v.label_list, "| id :", id(v))
-        # print("\tAretes")
-        # for e in self.edges:
-        #     print("sommet 1 : ", e.vertices[0].name, id(e.vertices[0]), "| sommet 2 : ", e.vertices[1].name,  id(e.vertices[1]), "| poids :", e.weight)
-
-        # print("Copie du graphe :")
-        # print("\tSommets :")
-        # for v in copie_graphe.vertices:
-        #     print("nom :", v.name, "| label_list :", v.label_list, "| id :", id(v))
-        # print("\tAretes")
-        # for e in copie_graphe.edges:
-        #     print("sommet 1 : ", e.vertices[0].name, id(e.vertices[0]), "| sommet 2 : ", e.vertices[1].name,  id(e.vertices[1]), "| poids :", e.weight)
 
         oriA = copie_graphe._index[source.name]
         destA = copie_graphe._index[dest.name]
@@ -467,35 +451,18 @@ class Graph:
         for e in copie_graphe.edges: 
             e.weight = (e.weight[0], 'A')
         print("------------ APPEL MONO ---------------")
-        liste_distance = copie_graphe.DijkstraMultiObjBidirectionnel(oriA, destA,condition_darret)
-        
-        # print("APRES MONO")
-        # print("Graphe :")
-        # print("\tSommets :")
-        # for v in self.vertices:
-        #     print("nom :", v.name, "| label_list :", v.label_list, "| id :", id(v))
-        # print("\tAretes")
-        # for e in self.edges:
-        #     print("sommet 1 : ", e.vertices[0].name, id(e.vertices[0]), "| sommet 2 : ", e.vertices[1].name,  id(e.vertices[1]), "| poids :", e.weight)
+        mono = copie_graphe.DijkstraMultiObjBidirectionnel(oriA, destA,condition_darret)
 
-        # print("Copie du graphe :")
-        # print("\tSommets :")
-        # for v in copie_graphe.vertices:
-        #     print("nom :", v.name, "| label_list :", v.label_list, "| id :", id(v))
-        # print("\tAretes")
-        # for e in copie_graphe.edges:
-        #     print("sommet 1 : ", e.vertices[0].name, id(e.vertices[0]), "| sommet 2 : ", e.vertices[1].name,  id(e.vertices[1]), "| poids :", e.weight)
-
-        if not liste_distance: 
+        if not mono: 
             return []
         
-        distance = liste_distance[0][1][0] 
-        chemins_opt = [liste_distance[0][2],liste_distance[0][3]]
+        distance = mono[0][1][0] 
+        chemins_opt = [mono[0][2],mono[0][3]]
 
         # Appliquer Dijkstra MO avec la distance à ne pas dépasser 
         distance_max: float = (1 + seuil/100) * distance 
         print("------------ APPEL BI ---------------")
-        return self.DijkstraMultiObjBidirectionnel(source, dest,condition_darret, distance_max, chemins_opt, seuil, verbose=False)
+        return mono[0], self.DijkstraMultiObjBidirectionnel(source, dest,condition_darret, distance_max, chemins_opt, seuil, verbose=False)
 
     def save_to_json(self, filename: str):
         '''
@@ -855,27 +822,3 @@ def afficher_lres(lres):
     for liste_sommets, vec, _, _ in lres:
         res += f"\t\t\tchemin : {liste_sommets}, cout = {vec}\n"
     print(res)
-
-
-# G = generate_random_graph("test", 10, 0.7, 3)
-# for v in G.vertices:
-#     if v.name == "V1":
-#         source = v 
-#     if v.name == "V2":
-#         dest = v
-"""
-G = Graph("eh", 2)
-
-V1=G.add_vertex("48.87596,2.28708")
-V2=G.add_vertex("48.87593,2.28707")
-V3=G.add_vertex("48.8759,2.28696")
-V4=G.add_vertex("48.83602,2.42751")
-G.add_edge("48.87596,2.28708", "48.87593,2.28707", G.distance_a_vol_d_oiseau(V1,V2), "A")
-G.add_edge("48.87596,2.28708", "48.8759,2.28696",G.distance_a_vol_d_oiseau(V1,V3), "B")
-G.add_edge("48.87593,2.28707", "48.8759,2.28696", G.distance_a_vol_d_oiseau(V2,V3), "A")
-G.add_edge("48.8759,2.28696", "48.83602,2.42751", G.distance_a_vol_d_oiseau(V3,V4), "A")
-
-#48° 50′ 46″ nord, 2° 21′ 21″ est Place Jussieu
-#48.857362, 2.306119 Rue Cler
-affiche_results(G.DijkstraMultiObjBidirectionnelSeuil(V1,V4, 10))
-"""
