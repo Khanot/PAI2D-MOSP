@@ -50,7 +50,7 @@ function calculer() {
     }
     document.getElementById("status").textContent = "Calcul en cours...";
     clearRoutes();
-    if (monoLayer.length > 0) { monoLayer.forEach(l => map.removeLayer(l)); monoLayer = []; }
+    if (monoLayer) { monoLayer.forEach(l => map.removeLayer(l)); monoLayer = []; }
     const seuil = parseInt(document.getElementById("seuil").value);
     fetch("/itineraire", {
         method: "POST",
