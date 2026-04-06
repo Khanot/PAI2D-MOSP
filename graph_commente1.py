@@ -554,7 +554,7 @@ class Graph:
             print(f"\tNombre de labels explores : {nbLabelsT}")
         return Lres 
 
-    def DijkstraMultiObjBidirectionnelSeuil(self, source: Vertex, dest: Vertex,condition_darret, seuil: float) -> List: 
+    def DijkstraMultiObjBidirectionnelSeuil(self, source: Vertex, dest: Vertex,condition_darret, seuil: float, heuris = None, nb_lm: int = 0) -> List: 
         '''
         Applique l'algorithme de Dijkstra multi-objectif bi-directionnel
         pour récupérer l'ensemble des chemins Pareto-optimaux 
@@ -564,6 +564,8 @@ class Graph:
         :param source: sommet source
         :param dest: sommet destination
         :param seuil: pourcentages supplémentaires du chemin optimal 
+        :param heuris: fonction heuristique utilisée pour réduire l'exploration (si None, distance à vol d'oiseau) 
+        :param nb_lm: nombre de landmarks (si heuristique est celle des landmarks)
         '''
         # Appliquer Dijkstra en version mono-objectif (distance totale) pour récupérer le chemin de longueur minimale
         copie_graphe: Graph = self.copie()
@@ -574,7 +576,7 @@ class Graph:
         for e in copie_graphe.edges: 
             e.weight = (e.weight[0], 'A')
         print("------------ APPEL MONO ---------------")
-        mono = copie_graphe.DijkstraMultiObjBidirectionnel(oriA, destA,condition_darret)
+        mono = copie_graphe.DijkstraMultiObjBidirectionnel(oriA, destA, condition_darret)
 
         if not mono: 
             return []
@@ -585,7 +587,7 @@ class Graph:
         # Appliquer Dijkstra MO avec la distance à ne pas dépasser 
         distance_max: float = (1 + seuil/100) * distance 
         print("------------ APPEL BI ---------------")
-        return mono[0], self.DijkstraMultiObjBidirectionnel(source, dest,condition_darret, distance_max, chemins_opt, seuil, verbose=False)
+        return mono[0], self.DijkstraMultiObjBidirectionnel(source, dest,condition_darret, distance_max, chemins_opt, seuil, verbose=False, heuris=heuris, nb_lm=nb_lm)
 
     def save_to_json(self, filename: str):
         '''
