@@ -466,19 +466,17 @@ class Graph:
         d: int = 1 # direction
 
         # Calcul de la distance restante avec l'heuristique
-        if heuris is None:
-            dist_restante = self.distance_a_vol_d_oiseau(source,dest)
-            
-        else:
-            sL, Lt = calcul_Lt_sL(heuris, source, dest, nb_lm)
-
-            ligne_sommet = find_row(heuris, source.name)
-            dist_restante = calcul_landmarks_avant(ligne_sommet, nb_lm, Lt)        
+        # Calcul de la distance restante avec l'heuristique
+        if heuris is not None:
+            s, t = calcul_st(heuris, source, dest, nb_lm)     
+            sL = s[:nb_lm]
+            Ls = s[nb_lm:]
+            tL = t[:nb_lm]
+            Lt = t[nb_lm:] 
  
         if verbose:
-            print("chemin optimal =", chemins_opt)
+            print("\t\tchemin optimal =", chemins_opt)
 
-        nbLabelsT: int = 2
 
         while not condition_darret(T, Lres, self, dest): # stop est la condition d'arrêt implantée plus tard
             d = 1-d # changement de direction
@@ -503,7 +501,6 @@ class Graph:
                 code += 1
 
                 # Si la distance parcourue + distance minimale possible > dist_max, on n'exploite pas le label
-                # Si la distance parcourue + distance minimale possible > dist_max, on n'exploite pas le label
                 if d == 0:
                     obj = dest
                 else:
@@ -514,9 +511,9 @@ class Graph:
                 else: 
                     ligne_sommet = find_row(heuris, voisin.name)
                     if d == 0:
-                        dist_restante = calcul_landmarks_avant(ligne_sommet, nb_lm, Lt)
+                        dist_restante = calcul_sommet_landmarks(ligne_sommet, nb_lm, tL, Lt, 0)
                     else:
-                        dist_restante = calcul_landmarks_arriere(ligne_sommet, nb_lm, sL)
+                        dist_restante = calcul_sommet_landmarks(ligne_sommet, nb_lm, sL, Ls, 1)
 
                 if newLabel.vector[0] + dist_restante> dist_max*(100+seuil)/100: 
                     if verbose:
@@ -834,7 +831,7 @@ def reconstruireChemin(chemin):
     return (chemin_ori, sommet_union, chemin_dest, vect, distance_ori, distance_dest)
 
 
-def addResults(path, liste_res) -> None: # A VECTORISER
+def addResults(path, liste_res) -> None: 
     """
     Reconstruit le chemin path et l'ajoute à liste_res s'il n'est pas dominé par un chemin de liste_res.
 
@@ -905,7 +902,7 @@ def find_row(df, vname: str):
     return df.loc[vname].values
 
 
-def calcul_Lt_sL(df, source: Vertex, dest: Vertex, nb_lm: int):
+def calcul_st(df, source: Vertex, dest: Vertex, nb_lm: int):
     ''' 
     Retourne des numpy arrays des distances (avant et arriere) des sommets source et destination aux landmarks.
     :param df: dataframe des distances
@@ -915,43 +912,42 @@ def calcul_Lt_sL(df, source: Vertex, dest: Vertex, nb_lm: int):
     '''
     rs = df.loc[source.name].values
     rt = df.loc[dest.name].values
-    return rs[:nb_lm], rt[nb_lm:]
+    return rs, rt
 
-
-def calcul_landmarks_avant(v, nb_lm: int, Lt) -> float:
+def calcul_sommet_landmarks(v, nb_lm: int, aL, La, d) -> float:
     ''' 
     Retourne la distance maximale entre tous les landmarks L
-    parmi |Lt - Lv| pour le sommet v
+    parmi max (sL - vL, Lt - Lv)  pour le sommet v
     :param v: array des distances entre un sommet donné et les landmarks (forward, backward)
     :param nb_lm: nombre de landmarks 
-    :param Lt: array des distances entre les landmarks et la destination finale
+    :param aL: array des distances entre la source et les landmarks
+    :param La: array des distances entre les landmarks et la destination
     '''
-    diff = Lt - v[:nb_lm]
+    d_v_L = v[:nb_lm]    # distances de v vers landmarks 
+    d_L_v = v[nb_lm:]    # distances des landmarks vers v 
 
-    valid = diff > -np.inf #tous ceux pour lesquels un chemin existe
-
-    if not valid.any():
-        return 0
-    
-    return np.max(np.abs(diff[valid]))
-
-
-def calcul_landmarks_arriere(v, nb_lm: int, sL) -> float:
-    ''' 
-    Retourne la distance maximale entre tous les landmarks L
-    parmi |sL - vL| pour le sommet v
-    :param v: array des distances entre un sommet donné et les landmarks (forward, backward)
-    :param nb_lm: nombre de landmarks 
-    :param Lt: array des distances entre la source et les landmarks
+    if d == 0:
+        diff1 = La - d_L_v 
+        diff2 = d_v_L - aL 
+    else:
+        diff1 = aL - d_v_L 
+        diff2 = d_L_v - La  
     '''
-    diff = sL - v[nb_lm:]
-
-    valid = diff > -np.inf
-
-    if not valid.any():
-        return 0
+    valid1 = np.isfinite(diff1)
+    valid2 = np.isfinite(diff2)
     
-    return np.max(np.abs(diff[valid]))
+    vals = []
+
+    if valid1.any():
+        vals.append(diff1[valid1])
+    if valid2.any():
+        vals.append(diff2[valid2])
+
+    if not vals:
+        return 0
+    '''
+    return np.nanmax(np.concatenate([diff1,diff2]))
+
 
 ### AFFICHER LES RESULTATS DE LRES DANS DIJKSTRA MO BD ###
 
