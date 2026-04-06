@@ -1,5 +1,6 @@
-import numpy as np, math, heapq, json
+import numpy as np, math, heapq, json, time, csv, pandas
 from typing import Tuple, List, Dict
+
 
 class Vertex:
 
@@ -339,8 +340,99 @@ class Graph:
         '''
         return [e for e in self.adj[dir][vertex]]
     
+    def landmarks_distance_computing(self, landmark_names: list[str], nom_fichier: str = "") -> None:
+        ''' 
+        Produit un fichier csv contenant les distances à tous les landmarks.
+        :param landmark_names: liste des noms des landmarks 
+        '''
+        # Copie du graphe pour tout passer en mono-objectif
+        copie_graphe: Graph = self.copie()
+        for e in copie_graphe.edges: 
+            e.weight = (e.weight[0], 'A')
 
-    def DijkstraMultiObjBidirectionnel(self, source: Vertex, dest: Vertex,condition_darret=None, dist_max: float = math.inf, chemins_opt: List = [dict(), dict()], seuil: float = math.inf, verbose = False) -> List:
+        # Création des dictionnaires contenant les distances des landmarks aux sommets (1) et inversement (0)
+        dist = [dict(),dict()]
+        for vert in copie_graphe.vertices:
+            dist[1][vert] = []
+
+        # Recherche des sommets associés aux noms des landmarks dans le graphe
+        landmarks = [copie_graphe._index[w] for w in landmark_names]
+        
+        # Calcul des distances des landmarks jusqu'aux sommets
+        print("Landmark -> points")
+        for lm in landmarks:
+            start = time.time()
+            dico = copie_graphe.Dijkstra(lm)       
+            for p,v in dico.items():
+                dist[1][p].append(v)         
+            print(f"Fin {lm.name} en {time.time()-start:.2f} s")
+        
+         # Calcul des distances des sommets jusqu'aux landmarks
+        print("Point -> landmarks")
+        start = time.time()
+        i = 0
+        for point in copie_graphe.vertices:
+            dist[0][point] = copie_graphe.Dijkstra(point, landmarks)  
+            i += 1 
+            if (i%1000 == 0):
+                print(f"Etape {i//1000} finie  {time.time()-start:.2f} s")  
+                start = time.time()            
+        print(f"Fin en {time.time()-start:.2f} s")
+        
+        # Ecriture des distances dans un fichier csv 
+        n = len(landmark_names)
+        with open(f"distances_landmarks_{nom_fichier}.csv", "w", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["vertex_name"] + [f"0:L{i}" for i in range(n)] + [f"1:L{i}" for i in range(n)])
+            dist0 = dist[0]
+            dist1 = dist[1]
+            for v in dist0:
+                writer.writerow([v.name] + dist0[v] + dist1[v])
+
+    def Dijkstra(self, source: Vertex, list_points: list[Vertex] = None, d : int = 0):
+        ''' 
+        Applique l'algorithme de Dijkstra.
+        Calcul des distances entre un sommet source aux sommets dans la liste points (si None, on le fait pour tous).
+        :param source: sommet source à partir duquel on calcule les distances
+        :param list_points: liste de sommets destination
+        :param d: direction (forward : 0, backward : 1)
+        '''
+        # Initialisation du dictionnaire des distances
+        distances = {v: float("inf") for v in self.vertices}
+        distances[source] = 0 
+
+        # Création d'une file de priorité
+        code = 0 # sert à choisir un sommet quand plusieurs ont la même distance à l'origine
+        file = [(0, code, source)] # file
+        heapq.heapify(file)
+
+        # Création d'un ensemble de sommets déjà visités
+        visited = set()
+
+        while file:  
+            distance, _, sommet = heapq.heappop(file)
+
+            if sommet in visited:
+                continue 
+
+            visited.add(sommet)
+
+            for e in self.getNeighbors(sommet, d):
+                voisin = e.vertices[1-d]
+                tentative_distance = distance + e.weight[0]
+                if tentative_distance < distances[voisin]:
+                    distances[voisin] = tentative_distance
+                    code += 1
+                    heapq.heappush(file, (tentative_distance, code, voisin))
+
+        # Si la liste de points est non vide, on ne récupère que les distances qui nous intéressent            
+        if list_points is not None:
+            return [distances[l] for l in list_points]
+        
+        return distances
+    
+
+    def DijkstraMultiObjBidirectionnel(self, source: Vertex, dest: Vertex, condition_darret = None, dist_max: float = math.inf, chemins_opt: List = [dict(), dict()], seuil: float = math.inf, verbose = False, heuris = None, nb_lm: int = 0) -> List:
         '''
         Applique l'algorithme de Dijkstra multi-objectif bi-directionnel
         pour récupérer l'ensemble des chemins Pareto-optimaux 
@@ -348,9 +440,13 @@ class Graph:
         
         :param source: sommet source
         :param dest: sommet destination
+        :param condition_darret: fonction de condition d'arret, renvoie True (s'il faut arreter) ou False
         :param dist_max: distance maximale a ne pas depasser (distance totale)
         :param chemins_opt: chemin optimal pour l'objectif de la distance (dans les deux sens)
         :param seuil: seuil pour borner les longueurs des sous-chemins passant par des sommets de chemin_opt
+        :param verbose: affiche des commentaires (True) ou rien (False)
+        :param heuris: fonction heuristique utilisée pour réduire l'exploration (si None, distance à vol d'oiseau) 
+        :param nb_lm: nombre de landmarks (si heuristique est celle des landmarks)
         '''
         T = [[],[]] # tas des labels temporaires (pour les deux directions)
         Lres = [] # liste des chemins Pareto-optimaux
@@ -359,17 +455,31 @@ class Graph:
         code = 0 # compteur du nombre de labels créés
         sourceLabel = Label(source, [0 for _ in range(self.nbClasses)], None, code) 
         code += 1 
-        source.addLabel(sourceLabel, 0)
         heapq.heappush(T[0], (sourceLabel.vector, sourceLabel.code, sourceLabel))
 
         # Ajout du label de destination à T[1]
         destLabel = Label(dest, [0 for _ in range(self.nbClasses)], None, code)
         code += 1
+        nbLabelsT = 2
         dest.addLabel(destLabel, 1)
         heapq.heappush(T[1], (destLabel.vector, destLabel.code, destLabel))
         d: int = 1 # direction
+
+        # Calcul de la distance restante avec l'heuristique
+        if heuris is None:
+            dist_restante = self.distance_a_vol_d_oiseau(source,dest)
+            
+        else:
+            sL, Lt = calcul_Lt_sL(heuris, source, dest, nb_lm)
+
+            ligne_sommet = find_row(heuris, source.name)
+            dist_restante = calcul_landmarks_avant(ligne_sommet, nb_lm, Lt)        
+ 
         if verbose:
             print("chemin optimal =", chemins_opt)
+
+        nbLabelsT: int = 2
+
         while not condition_darret(T, Lres, self, dest): # stop est la condition d'arrêt implantée plus tard
             d = 1-d # changement de direction
             if verbose:
@@ -393,11 +503,21 @@ class Graph:
                 code += 1
 
                 # Si la distance parcourue + distance minimale possible > dist_max, on n'exploite pas le label
-                if d==0:
-                    obj=dest
+                # Si la distance parcourue + distance minimale possible > dist_max, on n'exploite pas le label
+                if d == 0:
+                    obj = dest
                 else:
-                    obj=source
-                dist_restante=self.distance_a_vol_d_oiseau(voisin,obj)
+                    obj = source
+
+                if heuris is None:
+                    dist_restante = self.distance_a_vol_d_oiseau(voisin, obj)
+                else: 
+                    ligne_sommet = find_row(heuris, voisin.name)
+                    if d == 0:
+                        dist_restante = calcul_landmarks_avant(ligne_sommet, nb_lm, Lt)
+                    else:
+                        dist_restante = calcul_landmarks_arriere(ligne_sommet, nb_lm, sL)
+
                 if newLabel.vector[0] + dist_restante> dist_max*(100+seuil)/100: 
                     if verbose:
                         print("\t\tdistance totale trop grande !")
@@ -416,7 +536,7 @@ class Graph:
                 if not newLabel.dominated_by_list(voisin.label_list[d]): 
                     voisin.addLabel(newLabel, d)
                     heapq.heappush(T[d], (newLabel.vector, newLabel.code, newLabel))
-
+                    nbLabelsT += 1
                     # Si la liste des labels dans l'autre direction n'est pas vide, combiner les chemins
                     if voisin.label_list[1-d] != []:
                         # print("\tbizarre", voisin.name, voisin.label_list[1-d])
@@ -428,8 +548,11 @@ class Graph:
             # print("apres", T[d])
             if verbose:
                 print("---")
+
         self.reset_labels()
-        return Lres
+        if verbose:
+            print(f"\tNombre de labels explores : {nbLabelsT}")
+        return Lres 
 
     def DijkstraMultiObjBidirectionnelSeuil(self, source: Vertex, dest: Vertex,condition_darret, seuil: float) -> List: 
         '''
@@ -759,6 +882,74 @@ def addResults(path, liste_res) -> None: # A VECTORISER
     dico_arriere = {t[0]:t[1] for t in chemin_arriere}
 
     liste_res.append((liste_sommets, vec, dico_avant, dico_arriere))  
+
+### FONCTIONS LIEES AUX LANDMARKS DANS DIJKSTRA MO BD ###
+
+def read_landmarks_file(csvname: str):
+    '''
+    Retourne le dataframe d'un fichier csv.
+    :param csvname: nom du fichier csv
+    '''
+    fichier_csv = pandas.read_csv(csvname)
+    return pandas.DataFrame(fichier_csv)
+
+
+def find_row(df, vname: str):
+    ''' 
+    Retourne la ligne associée (version numpy) à un sommet dans un dataframe.
+    :param df: dataframe des distances 
+    :vname: nom du sommet
+    '''
+    return df.loc[vname].values
+
+
+def calcul_Lt_sL(df, source: Vertex, dest: Vertex, nb_lm: int):
+    ''' 
+    Retourne des numpy arrays des distances (avant et arriere) des sommets source et destination aux landmarks.
+    :param df: dataframe des distances
+    :param source: sommet de départ
+    :param dest: sommet d'arrivée
+    :param nb_lm: nombre de landmarks 
+    '''
+    rs = df.loc[source.name].values
+    rt = df.loc[dest.name].values
+    return rs[:nb_lm], rt[nb_lm:]
+
+
+def calcul_landmarks_avant(v, nb_lm: int, Lt) -> float:
+    ''' 
+    Retourne la distance maximale entre tous les landmarks L
+    parmi |Lt - Lv| pour le sommet v
+    :param v: array des distances entre un sommet donné et les landmarks (forward, backward)
+    :param nb_lm: nombre de landmarks 
+    :param Lt: array des distances entre les landmarks et la destination finale
+    '''
+    diff = Lt - v[:nb_lm]
+
+    valid = diff > -np.inf #tous ceux pour lesquels un chemin existe
+
+    if not valid.any():
+        return 0
+    
+    return np.max(np.abs(diff[valid]))
+
+
+def calcul_landmarks_arriere(v, nb_lm: int, sL) -> float:
+    ''' 
+    Retourne la distance maximale entre tous les landmarks L
+    parmi |sL - vL| pour le sommet v
+    :param v: array des distances entre un sommet donné et les landmarks (forward, backward)
+    :param nb_lm: nombre de landmarks 
+    :param Lt: array des distances entre la source et les landmarks
+    '''
+    diff = sL - v[nb_lm:]
+
+    valid = diff > -np.inf
+
+    if not valid.any():
+        return 0
+    
+    return np.max(np.abs(diff[valid]))
 
 ### AFFICHER LES RESULTATS DE LRES DANS DIJKSTRA MO BD ###
 
