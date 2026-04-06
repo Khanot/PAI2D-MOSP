@@ -455,12 +455,12 @@ class Graph:
         code = 0 # compteur du nombre de labels créés
         sourceLabel = Label(source, [0 for _ in range(self.nbClasses)], None, code) 
         code += 1 
+        source.addLabel(sourceLabel, 0)
         heapq.heappush(T[0], (sourceLabel.vector, sourceLabel.code, sourceLabel))
 
         # Ajout du label de destination à T[1]
         destLabel = Label(dest, [0 for _ in range(self.nbClasses)], None, code)
         code += 1
-        nbLabelsT = 2
         dest.addLabel(destLabel, 1)
         heapq.heappush(T[1], (destLabel.vector, destLabel.code, destLabel))
         d: int = 1 # direction
