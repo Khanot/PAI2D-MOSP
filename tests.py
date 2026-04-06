@@ -1,5 +1,6 @@
-from graph_commente1 import *
-from openStreetMap import *
+import openStreetMap as osm
+from graph_poids_reduits import *
+
 '''
 PETIT GRAPHE ALEATOIRE
 np.random.seed(0)
@@ -30,7 +31,7 @@ print("END")
 '''
 GRAPHE DE PARIS 2 CLASSES
 '''
-G2Classes = load_from_json("PAI2D-MOSP/graphes/GrapheParis2Classes.json")
+G2Classes = load_from_json("graphes/GrapheParis2Classes.json")
 
 origin, dest = Vertex("48.87596,2.28708"), Vertex("48.87593,2.28707")
 print(f"ORIGINE = {origin.name}, ARRIVEE = {dest.name}")

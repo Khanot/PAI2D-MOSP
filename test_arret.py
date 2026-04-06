@@ -8,14 +8,13 @@ from collections import defaultdict
 from graph_commente1 import *
 
 # Charger le graphe
-G2Classes = load_from_json("GrapheParis2Classes.json")
+G2Classes = load_from_json("graphes/GrapheParis2Classes.json")
 
 # Associer les fonctions à leur nom
 stop_functions = {
     "stop": stop,
     "stop2": stop2,
-    "stop3": stop3,
-    "stop4": stop4,
+    "stop3": stop3
 }
 
 # Tous les sommets disponibles dans le graphe
@@ -85,7 +84,7 @@ plt.ylabel("Temps d'exécution (s)")
 plt.title("Temps d'exécution selon la distance (distance <= 2 km)")
 plt.legend()
 plt.grid(True)
-plt.savefig("graphiques/temps_execution_tous.png", dpi=300, bbox_inches="tight")
+plt.savefig("graphiques/temps_execution_123.png", dpi=300, bbox_inches="tight")
 plt.show()
 
 # --- Courbe moyenne par tranches de distance ---
@@ -113,10 +112,10 @@ plt.ylabel("Temps moyen d'exécution (s)")
 plt.title("Temps moyen d'exécution selon la distance (<= 2 km)")
 plt.legend()
 plt.grid(True)
-plt.savefig("graphiques/temps_moyen_tous.png", dpi=300, bbox_inches="tight")
+plt.savefig("graphiques/temps_moyen_123.png", dpi=300, bbox_inches="tight")
 plt.show()
 
-
+"""
 # --- Même graphiques mais sans stop4 ---
 results_sans_stop4 = {
     nom: data
@@ -163,3 +162,4 @@ plt.legend()
 plt.grid(True)
 plt.savefig("graphiques/temps_moyen_sans_stop4.png", dpi=300, bbox_inches="tight")
 plt.show()
+"""
