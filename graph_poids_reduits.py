@@ -137,8 +137,8 @@ class Graph:
         self.adj: List[Dict[Vertex, set[Edge]], Dict[Vertex, set[Edge]]] = [dict(), dict()] # liste de successeurs, liste de prédécesseurs (donnés par les arcs)
         self.nbClasses = nbClasses # niveaux de sécurité d'un tronçon (lettres majuscules)
         self._index: dict[str, Vertex] = {}  
-        self.omega = [1.01 for _ in range (nbClasses-1)]  # liste de n-1 valeurs
-        self.gamma = [100 for _ in range (nbClasses-1)]  # liste de n-1 valeurs
+        self.omega = [1e-1 for _ in range(nbClasses - 1)]
+        self.gamma = [1e1  for _ in range(nbClasses - 1)]
         self.weight_vertices = self._compute_weight_vertices() if self.omega else None
 
     def _compute_weight_vertices(self) -> List[List[float]]:
@@ -599,52 +599,33 @@ def dominated_in_list_interval(v: List[float], liste_v: np.ndarray,
 
 ### CONDITION D'ARRET DANS DIJKSTRA MO BD ###
 
-def stop(T, Lres,graph,dest):
-    '''
-    Retourne True si Tmin est dominé par au moins un chemin de Lres,
-    False sinon.
-    (Dijkstra MO BD : boucle a arreter si True)
-    
-    :param T: liste des labels temporaires
-    :param Lres: liste des chemins Pareto-optimaux
-    '''
-    TF = T[0] # liste des etiquettes temporaires (forward)
-    TB = T[1] # liste des etiquettes temporaires (backward)
-
-    # Il n'y a plus de labels dans l'un des deux tas
+def stop(T, Lres, graph, dest):
+    TF, TB = T[0], T[1]
     if not TF or not TB:
         return True
 
-    # Forward : construire le vecteur de coûts minimum pour chaque objectif à partir des vecteurs de TF
-    TminF = np.min(np.array([vecteur[0] for vecteur in TF]), axis = 0)
-
-    # Backward : construire le vecteur de cout minimum pour chaque objectif a partir des vecteurs de TB
-    TminB = np.min(np.array([vecteur[0] for vecteur in TB]), axis = 0)
-
+    TminF = np.min(np.array([lbl.vector for _, _, lbl in TF]), axis=0)  # ← lbl.vector
+    TminB = np.min(np.array([lbl.vector for _, _, lbl in TB]), axis=0)  # ← lbl.vector
     Tmin = list(TminF + TminB)
     labTmin = Label(None, Tmin, None, -1)
-    Lres_labels = np.array([Label(None, vect, None, -1) for (_, vect,_ , _) in Lres])
-    return labTmin.dominated_by_list(Lres_labels) 
+    Lres_labels = [Label(None, vect, None, -1) for (_, vect, _, _) in Lres]
+    return labTmin.dominated_by_list(Lres_labels)
 
-def stop2(T, Lres,graph,dest):
+
+def stop2(T, Lres, graph, dest):
     TF, TB = T[0], T[1]
-
     if not TF or not TB:
         return True
-
     if not Lres:
         return False
 
-    # Borne inférieure uniquement sur TB
-    TminB = np.min(np.array([vecteur[0] for vecteur in TB]), axis=0)
+    TminB = np.min(np.array([lbl.vector for _, _, lbl in TB]), axis=0)  # ← lbl.vector
     Lres_labels = [Label(None, vect, None, -1) for (_, vect, _, _) in Lres]
 
-    # Pour chaque label forward, vérifier si lF + TminB est dominé
-    for (vect, _, _) in TF:
-        combined = Label(None, list(np.array(vect) + TminB), None, -1)
+    for (_, _, lbl) in TF:  # ← lbl.vector
+        combined = Label(None, list(np.array(lbl.vector) + TminB), None, -1)
         if not combined.dominated_by_list(Lres_labels):
-            return False  # ce label peut encore produire un chemin non dominé
-
+            return False
     return True
 
 def stop3(T, Lres, graph, dest):
@@ -711,38 +692,29 @@ def stop4(T, Lres, graph, dest):
 ### FONCTIONS LIEES AUX CHEMINS DANS DIJKSTRA MO BD ###
 
 def reconstruireChemin(chemin):
-    '''
-    Retourne un chemin reconstruit, i.e.
-    ([liste des sommets du chemin de source à destination], vecteur de coûts total, dictionnaire du détail du chemin avant, idem mais arrière)
-    
-    :param chemin: (label depuis source, label depuis dest, vecteur de coûts total)
-    '''
     depuis_ori, depuis_dest, vect = chemin
-    
-    # Chemin jusqu'à origine
+
     chemin_ori = []
     sommet = depuis_ori.vertex
     label_prec = depuis_ori.prev_label
     sommet_union = sommet.name
-    distance_ori = [(depuis_ori.vertex.name, depuis_ori.vector[0])]
-    while label_prec != None:
+    distance_ori = [(depuis_ori.vertex.name, total_dist(depuis_ori.vector))]  # ← total_dist
+    while label_prec is not None:
         sommet = label_prec.vertex
         chemin_ori = [sommet.name] + chemin_ori
-        distance_ori.append((sommet.name,label_prec.vector[0]))
+        distance_ori.append((sommet.name, total_dist(label_prec.vector)))     # ← total_dist
         label_prec = label_prec.prev_label
     distance_ori.reverse()
 
-    # Chemin jusqu'à destination
     chemin_dest = []
     label_prec = depuis_dest.prev_label
-    distance_dest = [(depuis_dest.vertex.name, depuis_dest.vector[0])]
-    while label_prec != None:
+    distance_dest = [(depuis_dest.vertex.name, total_dist(depuis_dest.vector))]  # ← total_dist
+    while label_prec is not None:
         sommet = label_prec.vertex
         chemin_dest = chemin_dest + [sommet.name]
-        distance_dest.append((sommet.name,label_prec.vector[0]))
+        distance_dest.append((sommet.name, total_dist(label_prec.vector)))        # ← total_dist
         label_prec = label_prec.prev_label
 
-    chemin = chemin_ori + [sommet_union] + chemin_dest
     return (chemin_ori, sommet_union, chemin_dest, vect, distance_ori, distance_dest)
 
 
@@ -845,11 +817,10 @@ def generate_random_graph(name: str, nbVertex: int, probaEdge: float, nbClasses:
 
     return G
 
-def afficher_T(T,d):
-    res = f"T[{d}] =\n" 
+def afficher_T(T, d):
+    res = f"T[{d}] =\n"
     for t in T[d]:
-        res += f"\t{t[2].vertex.name} : {[int(x) for x in t[0]]}, code = {t[2].code}\n"
-    
+        res += f"\t{t[2].vertex.name} : {[int(x) for x in t[2].vector]}, code = {t[2].code}\n"
     print(res)
 
 def afficher_lres(lres):
