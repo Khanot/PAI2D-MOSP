@@ -44,6 +44,8 @@
         .chemin-item .distance { color: #1976D2; font-weight: bold; }
         .chemin-item .vecteur { color: #555; font-size: 11px; }
     </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js"></script>
 </head>
 <body>
     <div id="map"></div>
@@ -64,6 +66,32 @@
         <div><b>Source :</b> <span id="src-label">non sélectionnée</span></div>
         <div><b>Dest :</b> <span id="dst-label">non sélectionnée</span></div>
         <label>Seuil (%) : <input id="seuil" type="number" value="10" min="0" max="100" style="width:60px"/></label>
+        
+        <div style="margin-top:4px;">
+            <b><span style="font-size:0.9em;">X mètres en catégorie A mieux que 100 mètres en catégorie B. Y mètres en A mieux que 100m en B.  </span></b>
+            <div id="ab-slider" style="margin:8px 0;"></div>
+                <div style="font-size:12px;">
+                    X = <span id="min">100</span>
+                    &nbsp;|&nbsp;
+                    Y = <span id="max">500</span>
+                </div>
+        </div>
+
+        <div style="margin-top:4px;">
+            <b>
+                <span style="font-size:0.9em;">
+                    X mètres en catégorie B mieux que 100 mètres en catégorie C. Y mètres en B moins bien que 100m en C.
+                </span>
+            </b>
+
+            <div id="bc-slider" style="margin:8px 0;"></div>
+                <div style="font-size:12px;">
+                    X = <span id="min2">100</span>
+                    &nbsp;|&nbsp;
+                    Y = <span id="max2">500</span>
+                </div>
+        </div>
+        
         <button id="btn-calcul" onclick="calculer()">Calculer</button>
         <button id="reset" onclick="resetSelection()">Réinitialiser</button>
         <div id="status">Cliquez sur un sommet pour le sélectionner.</div>
