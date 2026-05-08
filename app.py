@@ -1,12 +1,25 @@
 from flask import Flask, jsonify, render_template, request
 from graph_commente1 import *
-import json
 import math
+
+# Remarques :
+## Même s'il y a l'affichage des barres de préférence, ici elles n'ont pas d'impact 
+## Les vecteurs de coût sont ici cumulés ! Contrairement à app2
 
 app = Flask(__name__)
 
+NB_LANDMARKS = 40
+
 # Chargement du graphe au démarrage
-G = load_from_json("graphes/GrapheParis2Classes.json")
+G = load_from_json("GrapheParis3C.json")
+
+# Récupération des landmarks 
+df = read_landmarks_file("distances_landmarks_Paris3C.csv")
+df = df.set_index('vertex_name')
+columns = [f"0:L{i}" for i in range(NB_LANDMARKS)] + [f"1:L{i}" for i in range(NB_LANDMARKS)]
+df = df[columns]
+for c in columns:
+    df[c] = df[c].astype("float16")
 
 @app.route("/")
 def index():
@@ -29,11 +42,19 @@ def itineraire():
     if source is None or dest is None:
         return jsonify({"error": "Sommet introuvable"}), 404
 
-    # Réinitialiser les labels (important entre deux appels)
-    for v in G.vertices:
-        v.label_list = [[], []]
-
-    mono, resultats = G.DijkstraMultiObjBidirectionnelSeuil(source, dest, stop3, seuil=data.get("seuil", 20))
+    mono, resultats = G.AStarMultiObjBidirectionnelSeuil(source, 
+                                                        dest, 
+                                                        df, 
+                                                        NB_LANDMARKS, 
+                                                        stop, 
+                                                        seuil=data.get("seuil", 20))
+    i = 1
+    for chemin, vect in resultats:
+        print(f"CHEMIN {i}")
+        print("\tchemin =", chemin)
+        print("\tvect =", [float(k) for k in vect])
+        print("-----")
+        i+=1
 
     if not resultats:
             return jsonify({"error": "Aucun chemin trouvé"}), 404
@@ -51,7 +72,7 @@ def itineraire():
 
     # Retourner les chemins Pareto-optimaux
     chemins = []
-    for (path, vect, _, _) in resultats:
+    for (path, vect) in resultats:
         coords = []
         for v in path:
             name = v.name if hasattr(v, "name") else v  # gère les deux cas
