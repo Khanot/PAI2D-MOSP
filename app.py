@@ -11,7 +11,7 @@ app = Flask(__name__)
 NB_LANDMARKS = 40
 
 # Chargement du graphe au démarrage
-G = load_from_json("GrapheParis3C.json")
+G = load_from_json("graphes/GrapheParis3C.json")
 
 # Récupération des landmarks 
 df = read_landmarks_file("distances_landmarks_Paris3C.csv")
