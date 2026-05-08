@@ -1,7 +1,7 @@
 from graph_commente1 import *
 
 # Charger le graphe
-G2Classes = load_from_json("GrapheParis2Classes.json")
+G2Classes = load_from_json("graphes/GrapheParis3C.json")
 
 # Tous les sommets disponibles dans le graphe
 vertices = list(G2Classes.adj[0].keys())
@@ -97,4 +97,4 @@ montparnasse,
 etoile,
 place_italie]
 
-G2Classes.landmarks_distance_computing(landmarks)
+G2Classes.landmarks_distance_computing(landmarks, "Paris3C")
