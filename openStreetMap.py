@@ -3,8 +3,6 @@
 from graph_commente1 import *
 import osmnx as ox
 
-
-
 def edge_to_class(data):
     """
     Convertit un edge OSMnx en classe qualitative A-Z.
@@ -57,10 +55,19 @@ def edge_to_class(data):
     score = max(0, min(score, 11))
 
     # convertir en lettre A-Z
-    classe = chr(ord('A') + score)
-    return classe
-
-
+    if score <= 1:
+        return "A"
+    elif score <= 3:
+        return "B"
+    elif score <= 5:
+        return "C"
+    elif score <= 7:
+        return "D"
+    elif score <= 9:
+        return "F"
+    else:
+        return "G"
+    
 
 def convert_osmnx_to_custom_graph(G_osm, name="OSM_graph", nbClasses=11):
     
@@ -90,15 +97,15 @@ def convert_osmnx_to_custom_graph(G_osm, name="OSM_graph", nbClasses=11):
 
     return custom
 
-"""
+
 G_osm = ox.graph_from_place("Paris, France", network_type="bike")
 
-G_custom = convert_osmnx_to_custom_graph(G_osm)
+G_custom = convert_osmnx_to_custom_graph(G_osm, nbClasses=3)
 
+G_custom.save_to_json("GrapheParis.json")
 
-G_custom.save_to_json("testGraphe.json")
-
-
+# Test chemin
+"""
 G=load_from_json("GrapheParis.json")
 G.affiche_dico_adj()
 V1=G.search_vertex("48.85445,2.37223")
