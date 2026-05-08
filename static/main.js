@@ -1,4 +1,5 @@
 const map = L.map("map").setView([48.8566, 2.3522], 13);
+const city = "Paris";
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution: "© OpenStreetMap"
@@ -10,6 +11,12 @@ let routeLayers = [];
 let monoLayer = [];
 let allMarkers = L.layerGroup().addTo(map);
 const renderer = L.canvas({ padding: 0.5 });
+const minV = 100;
+const maxV = 500;
+let minVal = minV;
+let maxVal = maxV;
+let minVal2 = minV;
+let maxVal2 = maxV;
 
 // Chargement de tous les sommets
 fetch("/vertices")
@@ -52,10 +59,14 @@ function calculer() {
     clearRoutes();
     if (monoLayer) { monoLayer.forEach(l => map.removeLayer(l)); monoLayer = []; }
     const seuil = parseInt(document.getElementById("seuil").value);
+    const minVal = parseInt(document.getElementById("min").textContent);
+    const maxVal = parseInt(document.getElementById("max").textContent);
+    const minVal2 = parseInt(document.getElementById("min2").textContent);
+    const maxVal2 = parseInt(document.getElementById("max2").textContent);
     fetch("/itineraire", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ source: source.name, dest: dest.name, seuil })
+        body: JSON.stringify({ source: source.name, dest: dest.name, seuil, minVal, maxVal, minVal2, maxVal2 })
     })
     .then(r => r.json())
     .then(data => {
@@ -71,7 +82,7 @@ function calculer() {
     if (data.mono && data.mono.coords.length > 0) {
         const monoCoords = data.mono.coords.map(c => [c.lat, c.lon]);
         const monoLine = L.polyline(monoCoords, { color: "purple", weight: 4, opacity: 0.9 })
-            .bindTooltip(" Plus court chemin 1 cat", { sticky: true })
+            .bindTooltip(" Plus court chemin mono-objectif", { sticky: true })
             .addTo(map);
         monoLayer.push(monoLine);
     }
@@ -130,7 +141,7 @@ function setupSearch(inputId, suggestionsId, role) {
         if (query.length < 3) { suggestions.style.display = "none"; return; }
 
         timer = setTimeout(() => {
-            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + " Paris")}&format=json&limit=5`)
+            fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + " " + city)}&format=json&limit=5`)
                 .then(r => r.json())
                 .then(results => {
                     suggestions.innerHTML = "";
@@ -206,3 +217,49 @@ function afficherChemin(index) {
 // Initialise les deux champs
 setupSearch("search-src", "suggestions-src", "source");
 setupSearch("search-dst", "suggestions-dst", "dest");
+
+
+window.addEventListener("load", () => {
+    const slider = document.getElementById("ab-slider");
+
+    noUiSlider.create(slider, {
+        start: [minV, maxV],
+        connect: true,
+        step: 1,
+        range: {
+            min: minV,
+            max: maxV
+        }
+    });
+
+    slider.noUiSlider.on("update", (values) => {
+        minVal = parseInt(values[0]);
+        maxVal = parseInt(values[1]);
+
+        document.getElementById("min").textContent = minVal;
+        document.getElementById("max").textContent = maxVal;
+    });
+});
+
+
+window.addEventListener("load", () => {
+    const slider = document.getElementById("bc-slider");
+
+    noUiSlider.create(slider, {
+        start: [minV, maxV],
+        connect: true,
+        step: 1,
+        range: {
+            min: minV,
+            max: maxV
+        }
+    });
+
+    slider.noUiSlider.on("update", (values) => {
+        const minVal2 = parseInt(values[0]);
+        const maxVal2 = parseInt(values[1]);
+
+        document.getElementById("min2").textContent = minVal2;
+        document.getElementById("max2").textContent = maxVal2;
+    });
+});
