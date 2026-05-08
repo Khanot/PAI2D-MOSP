@@ -1,12 +1,24 @@
 from flask import Flask, jsonify, render_template, request
 from graph_poids_reduits import *
-import json
 import math
 
 app = Flask(__name__)
+NB_CAT = 3
+NB_LANDMARKS = 40
+ville = "Paris"
+condition_arret = stop
 
 # Chargement du graphe au démarrage
-G = load_from_json("graphes/GrapheParis2Classes.json")
+G = load_from_json("GrapheParis3C.json")
+
+# Récupération des landmarks 
+df = read_landmarks_file("distances_landmarks_Paris3C.csv")
+df = df.set_index('vertex_name')
+columns = [f"0:L{i}" for i in range(NB_LANDMARKS)] + [f"1:L{i}" for i in range(NB_LANDMARKS)]
+df = df[columns]
+for c in columns:
+    df[c] = df[c].astype("float16")
+
 
 @app.route("/")
 def index():
@@ -29,9 +41,15 @@ def itineraire():
 
     for v in G.vertices:
         v.label_list = [[], []]
+    
+    G.omega = [100/data["minVal"], 100/data["minVal2"]]
+    G.gamma = [100/data["maxVal"], 100/data["maxVal2"]]
+    print("Vecteur OMEGA =", G.omega)
+    print("Vecteur GAMMA =", G.gamma)
+    G.weight_vertices = G._compute_weight_vertices()
 
-    mono, resultats = G.DijkstraMultiObjBidirectionnelSeuil(
-        source, dest, stop3, seuil=data.get("seuil", 20)
+    mono, resultats = G.AStarMultiObjBidirectionnelSeuil(
+        source, dest, df, NB_LANDMARKS, condition_arret, seuil=data.get("seuil", 20)
     )
     if not resultats:
         return jsonify({"error": "Aucun chemin trouvé"}), 404
@@ -45,12 +63,12 @@ def itineraire():
 
     mono_data = {
         "coords":      mono_coords,
-        "distance_km": round(total_dist(mono[1]) / 1000, 2)  # ← corrigé
+        "distance_km": round(total_dist(mono[1]) / 1000, 3)  # ← corrigé
     }
 
     # Chemins Pareto
     chemins = []
-    for (path, vect, _, _) in resultats:
+    for (path, vect) in resultats:
         coords = []
         for v in path:
             name = v.name if hasattr(v, "name") else v
@@ -59,7 +77,7 @@ def itineraire():
         chemins.append({
             "coords":      coords,
             "vecteur":     vect,
-            "distance_km": round(total_dist(vect) / 1000, 2)  # ← corrigé
+            "distance_km": round(total_dist(vect) / 1000, 3)  # ← corrigé
         })
 
     return jsonify({"chemins": chemins, "mono": mono_data})
