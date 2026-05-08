@@ -1,12 +1,11 @@
 import numpy as np, math, heapq, json, time, csv, pandas
 from typing import Tuple, List, Dict
 
-
 class Vertex:
 
     def __init__(self, name: str) -> None:
         self.name: str = name
-        self.label_list=[[],[]] # liste des listes forward et backward des labels (Dijkstra MO bi-directionnel)
+        self.label_list: List[List] = [[],[]] # liste des listes forward et backward des labels (A* MO bi-directionnel)
 
     def __eq__(self, vertexPrime):
         '''
@@ -22,7 +21,7 @@ class Vertex:
     def __hash__(self):
         return hash(self.name)
     
-    def coordonnees(self): 
+    def coordonnees(self) -> Tuple[int, int]: 
         '''
         Retourne le tuple de coordonnées associées au sommet. 
         (MOGPL : positions représentées par des sommets)
@@ -38,6 +37,15 @@ class Vertex:
                 else:
                     return (x, int(l[i:j]))
             j += 1
+
+    def coordonnees2(self) -> Tuple[float, float]:
+        '''
+        Retourne le tuple de coordonnées associées au sommet. 
+        (PAI2D : nom d'un sommet (latitude, longitude))
+        '''
+        lat, lon = self.name.split(",")
+        return float(lat), float(lon)
+    
 
     def addLabel(self, label, direction: int) -> None: 
         '''
@@ -109,18 +117,17 @@ class Label:
         new_vector[np.arange(nbClasses) <= classe] += dist
         return Label(new_vertex, list(new_vector), self, code)
     
-    def combine(self, labelListe, direction: int, dist_max: float = math.inf, seuil = math.inf, chemin_opt = dict(), poids_arete: float = math.inf,verbose=False) -> List: # A VECTORISER
+    def combine(self, labelListe, direction: int, dist_max: float = math.inf) -> List:
         '''
         Retourne une liste des chemins combinés entre un label et une liste de labels.
         Un chemin : (label depuis source, label depuis destination, vecteur de coûts total)
         ou etiquette = label ou les deux procédures se rejoignent
 
-        :param label: label 
         :param labelListe: liste de labels dans la direction opposée
         :param direction: direction 0 avant ou 1 arrière
         :param dist_max: distance maximale à ne pas dépasser pour un chemin (distance totale pour le premier critère)
         '''
-        vecteurs_cout_finaux = []
+        res = []
         vec = self.vector
         nb_dim = len(vec)
 
@@ -128,16 +135,12 @@ class Label:
         for label in labelListe:
             vec_suivant = label.vector
             if vec[0] + vec_suivant[0] <= dist_max :
-                if self.vertex.name in chemin_opt:
-                    if verbose:
-                        print(f"\t\t\t {self.vertex.name} combine : sous_dist_max = {(1 + seuil/100)*chemin_opt[self.vertex.name]}")
-                    # if (1 + seuil/100)*chemin_opt[self.vertex.name] >= poids_arete + vec_suivant[0]: 
-                vecteurs_cout_finaux.append([vec[j] + vec_suivant[j] for j in range(nb_dim)])
+                if direction == 0:
+                    res.append((self, label, [vec[j] + vec_suivant[j] for j in range(nb_dim)]))
+                else:
+                    res.append((label, self, [vec[j] + vec_suivant[j] for j in range(nb_dim)]))
 
-        if direction == 0: # forward
-            return [(self, labelListe[i], vecteurs_cout_finaux[i]) for i in range(len(vecteurs_cout_finaux))]
-        # backward
-        return [(labelListe[i], self, vecteurs_cout_finaux[i]) for i in range(len(vecteurs_cout_finaux))]
+        return res
 
 
 class Graph:
@@ -158,6 +161,8 @@ class Graph:
         for vertex in self.vertices:
             vertex.label_list = [[], []]
 
+    # Copie du graphe
+
     def copie(self): 
         '''
         Renvoie une copie du graphe.
@@ -174,6 +179,8 @@ class Graph:
 
         return g
 
+    # Fonctions sur la taille du graphe
+
     def nbVertices(self) -> int:
         '''
         Renvoie le nombre de sommets du graphe.
@@ -185,6 +192,8 @@ class Graph:
         Renvoie le nombre d'arcs du graphe.
         '''
         return len(self.edges)
+    
+    # Fonctions d'ajout de sommets ou d'arcs
 
     def add_vertex(self, name: str) -> Vertex :
         '''
@@ -200,34 +209,7 @@ class Graph:
             self.adj[1][v] = set()
             self._index[name] = v
         return self._index[name]
-
-    def search_vertex(self, name : str) -> Vertex | None:
-        '''
-        Renvoie le sommet dans le graphe courant de nom "name" s'il existe, sinon renvoie None
-        '''
-        return self._index.get(name)
     
-    def distance_a_vol_d_oiseau(self,v1 : Vertex,  v2 : Vertex) -> float:
-        """
-        Renvoie la distance euclidienne entre deux sommets
-        dont les noms sont des coordonnées "lat,lon".
-        """
-
-        lat1, lon1 = map(float, v1.name.split(","))
-        lat2, lon2 = map(float, v2.name.split(","))
-
-        R = 6371000  # rayon de la Terre en mètres
-
-        phi1 = math.radians(lat1)
-        phi2 = math.radians(lat2)
-        dphi = math.radians(lat2 - lat1)
-        dlambda = math.radians(lon2 - lon1)
-
-        a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-
-        return R * c
-
     def add_edge(self, namev1: str, namev2: str, dist: float, classe: str) -> None:
         '''
         Ajoute une arête au graphe.
@@ -238,12 +220,9 @@ class Graph:
         :param classe: classe de l'arc
         '''
         # Récupération des vertex dans le graphe
-        """
-        vertex1 = next(v for v in self.vertices if v.name == namev1)
-        vertex2 = next(v for v in self.vertices if v.name == namev2)
-        """
-        vertex1 = self._index.get(namev1)
+        vertex1 = self._index.get(namev1) # next(v for v in self.vertices if v.name == namev1)
         vertex2 = self._index.get(namev2)
+
         # Pas de boucle autorisée
         if vertex1 == vertex2:
             return
@@ -255,6 +234,18 @@ class Graph:
         self.edges.add(e)
         self.adj[0][vertex1].add(e)
         self.adj[1][vertex2].add(e)
+
+    # Recherche d'un sommet 
+
+    def search_vertex(self, name : str) -> Vertex | None:
+        '''
+        Renvoie le sommet dans le graphe courant de nom "name" s'il existe, sinon renvoie None
+
+        :param name: nom du sommet à trouver
+        '''
+        return self._index.get(name)
+
+    # Fonctions de suppression de sommets ou de listes de labels
 
     def delete_vertex(self, name: str) -> None: 
         '''
@@ -284,25 +275,73 @@ class Graph:
         '''
         for nom in name_list:
             self.delete_vertex(nom)
+    
+    def reset_labels(self) -> None:
+        '''
+        Réinitialise les listes de labels forward et backward
+        de tous les sommets du graphe.
+        '''
+        for vertex in self.vertices:
+            vertex.label_list = [[], []]
+        
+    # Récupération des voisins d'un sommet du graphe
 
-    def degres(self, sens: int) -> List:
+    def getNeighbors(self, vertex: Vertex, dir: int) -> List[Edge]:
+        '''
+        Renvoie la liste des arcs de vertex.
+        
+        :param vertex: sommet courant
+        :param dir: direction de parcours (0: successeurs, 1: predecesseurs)
+        '''
+        return [e for e in self.adj[dir][vertex]]
+
+    # Fonctions sur le degré des sommets du graphe 
+
+    def degres(self, dir: int) -> List:
         '''
         Renvoie un tableau contenant les tuples (sommet s, degré(s)) pour les sommets du graphe.
 
-        :param sens: 1 si degrés sortants, 0 si degrés entrants
+        :param dir: direction de parcours (0: successeurs, 1: predecesseurs)
         '''
-        return [(v, len(neighbors)) for (v, neighbors) in self.adj[sens].items()]
+        return [(v, len(neighbors)) for (v, neighbors) in self.adj[dir].items()]
 
-
-    def max_degre(self, sens: int) -> str:
+    def max_degre(self, dir: int) -> str:
         '''
         Renvoie le nom du (premier) sommet de degré maximal du graphe.
 
-        :param sens: 1 si degrés sortants, 0 si degrés entrants
+        :param dir: direction de parcours (0: successeurs, 1: predecesseurs)
         '''
-        deg = self.degres(sens)
+        deg = self.degres(dir)
         m = max(d[1] for d in deg)
         return next(x[0].name for x in deg if x[1] == m)
+    
+    # Distance entre deux sommets qui représentent des coordonnées
+    
+    def distance_a_vol_d_oiseau(self, v1 : Vertex,  v2 : Vertex) -> float:
+        '''
+        Renvoie la distance euclidienne entre deux sommets
+        dont les noms sont des coordonnées "lat, lon".
+
+        :param v1: sommet 1
+        :param v2: sommet 2
+        '''
+
+        lat1, lon1 = map(float, v1.name.split(","))
+        lat2, lon2 = map(float, v2.name.split(","))
+
+        R = 6371000  # rayon de la Terre en mètres
+
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        dphi = math.radians(lat2 - lat1)
+        dlambda = math.radians(lon2 - lon1)
+
+        a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+
+        return R * c
+    
+    # Fonctions d'affichage du graphe
 
     def affiche_dico_adj(self) -> None:
         '''
@@ -330,15 +369,33 @@ class Graph:
                 res += l.labelToString() + ", "
             print(res + "]")
 
+    # Sauvegarde d'un graphe 
 
-    def getNeighbors(self, vertex : Vertex, dir : int) -> List[Edge]:
+    def save_to_json(self, filename: str):
         '''
-        Renvoie la liste des arcs de vertex.
-        
-        :param vertex: sommet courant
-        :param dir: direction de parcours (0: successeurs, 1: predecesseurs)
+        Enregistre un graphe sous format json.
+
+        :param filename: nom du fichier dans lequel sera enregistré le graphe
         '''
-        return [e for e in self.adj[dir][vertex]]
+        data = {
+            "name": self.name,
+            "nbClasses": self.nbClasses,
+            "vertices": [v.name for v in self.vertices],
+            "edges": [
+                {
+                    "from": e.vertices[0].name,
+                    "to": e.vertices[1].name,
+                    "dist": e.weight[0],
+                    "classe": e.weight[1]
+                }
+                for e in self.edges
+            ]
+        }
+
+        with open(filename, "w") as f:
+            json.dump(data, f, indent=4)
+
+    # Algorithmes 
     
     def landmarks_distance_computing(self, landmark_names: list[str], nom_fichier: str = "") -> None:
         ''' 
@@ -354,6 +411,7 @@ class Graph:
         dist = [dict(),dict()]
         for vert in copie_graphe.vertices:
             dist[1][vert] = []
+            dist[0][vert] = []
 
         # Recherche des sommets associés aux noms des landmarks dans le graphe
         landmarks = [copie_graphe._index[w] for w in landmark_names]
@@ -369,15 +427,12 @@ class Graph:
         
          # Calcul des distances des sommets jusqu'aux landmarks
         print("Point -> landmarks")
-        start = time.time()
-        i = 0
-        for point in copie_graphe.vertices:
-            dist[0][point] = copie_graphe.Dijkstra(point, landmarks)  
-            i += 1 
-            if (i%1000 == 0):
-                print(f"Etape {i//1000} finie  {time.time()-start:.2f} s")  
-                start = time.time()            
-        print(f"Fin en {time.time()-start:.2f} s")
+        for lm in landmarks:
+            start = time.time()
+            dico = copie_graphe.Dijkstra(lm, d=1)       
+            for p,v in dico.items():
+                dist[0][p].append(v)         
+            print(f"Fin {lm.name} en {time.time()-start:.2f} s")
         
         # Ecriture des distances dans un fichier csv 
         n = len(landmark_names)
@@ -389,12 +444,11 @@ class Graph:
             for v in dist0:
                 writer.writerow([v.name] + dist0[v] + dist1[v])
 
-    def Dijkstra(self, source: Vertex, list_points: list[Vertex] = None, d : int = 0):
+    def Dijkstra(self, source: Vertex, d : int = 0):
         ''' 
         Applique l'algorithme de Dijkstra.
-        Calcul des distances entre un sommet source aux sommets dans la liste points (si None, on le fait pour tous).
+        Calcul des distances entre un sommet source et tous les sommets.
         :param source: sommet source à partir duquel on calcule les distances
-        :param list_points: liste de sommets destination
         :param d: direction (forward : 0, backward : 1)
         '''
         # Initialisation du dictionnaire des distances
@@ -425,14 +479,10 @@ class Graph:
                     code += 1
                     heapq.heappush(file, (tentative_distance, code, voisin))
 
-        # Si la liste de points est non vide, on ne récupère que les distances qui nous intéressent            
-        if list_points is not None:
-            return [distances[l] for l in list_points]
-        
         return distances
     
 
-    def DijkstraMultiObjBidirectionnel(self, source: Vertex, dest: Vertex, condition_darret = None, dist_max: float = math.inf, chemins_opt: List = [dict(), dict()], seuil: float = math.inf, verbose = False, heuris = None, nb_lm: int = 0) -> List:
+    def AStarMultiObjBidirectionnel(self, source: Vertex, dest: Vertex, heuris, nb_lm: int, condition_darret = None, dist_max: float = math.inf, seuil: float = math.inf, verbose = False) -> List:
         '''
         Applique l'algorithme de Dijkstra multi-objectif bi-directionnel
         pour récupérer l'ensemble des chemins Pareto-optimaux 
@@ -440,13 +490,13 @@ class Graph:
         
         :param source: sommet source
         :param dest: sommet destination
+        :param heuris: distances entre tous les points et les landmarks utilisées pour réduire l'exploration
+        :param nb_lm: nombre de landmarks
         :param condition_darret: fonction de condition d'arret, renvoie True (s'il faut arreter) ou False
         :param dist_max: distance maximale a ne pas depasser (distance totale)
-        :param chemins_opt: chemin optimal pour l'objectif de la distance (dans les deux sens)
         :param seuil: seuil pour borner les longueurs des sous-chemins passant par des sommets de chemin_opt
         :param verbose: affiche des commentaires (True) ou rien (False)
-        :param heuris: fonction heuristique utilisée pour réduire l'exploration (si None, distance à vol d'oiseau) 
-        :param nb_lm: nombre de landmarks (si heuristique est celle des landmarks)
+        
         '''
         T = [[],[]] # tas des labels temporaires (pour les deux directions)
         Lres = [] # liste des chemins Pareto-optimaux
@@ -466,20 +516,17 @@ class Graph:
         d: int = 1 # direction
 
         # Calcul de la distance restante avec l'heuristique
-        # Calcul de la distance restante avec l'heuristique
-        if heuris is not None:
-            s, t = calcul_st(heuris, source, dest, nb_lm)     
-            sL = s[:nb_lm]
-            Ls = s[nb_lm:]
-            tL = t[:nb_lm]
-            Lt = t[nb_lm:] 
- 
-        if verbose:
-            print("\t\tchemin optimal =", chemins_opt)
+        ds, dt = calcul_st(heuris, source, dest, nb_lm)    
+        d_s_L = ds[:nb_lm]   # distances de s vers landmarks 
+        d_L_s = ds[nb_lm:]   # distances des landmarks vers s 
+        d_t_L = dt[:nb_lm]   # distances de t vers landmarks 
+        d_L_t = dt[nb_lm:]   # distances des landmarks vers t 
 
+        nbLabelsT = 0
 
         while not condition_darret(T, Lres, self, dest): # stop est la condition d'arrêt implantée plus tard
             d = 1-d # changement de direction
+            nbLabelsT += 1
             if verbose:
                 afficher_T(T,d)
             # Récupération d'un label dans T[d]
@@ -491,6 +538,7 @@ class Graph:
                 print("Sommet courant =", owner.name, " direction =", d, "code =", label.code)
             neighbors: List[Edge] = self.getNeighbors(owner, d)
 
+
             # Parcours des voisins
             e: Edge
             for e in neighbors:
@@ -501,70 +549,53 @@ class Graph:
                 code += 1
 
                 # Si la distance parcourue + distance minimale possible > dist_max, on n'exploite pas le label
-                if d == 0:
-                    obj = dest
-                else:
-                    obj = source
+                obj = dest if d == 0 else source
+                distance_oiseau = self.distance_a_vol_d_oiseau(voisin, obj)
 
-                if heuris is None:
-                    dist_restante = self.distance_a_vol_d_oiseau(voisin, obj)
-                else: 
-                    ligne_sommet = find_row(heuris, voisin.name)
-                    if d == 0:
-                        dist_restante = calcul_sommet_landmarks(ligne_sommet, nb_lm, tL, Lt, 0)
-                    else:
-                        dist_restante = calcul_sommet_landmarks(ligne_sommet, nb_lm, sL, Ls, 1)
-
+                ligne_sommet = find_row(heuris, voisin.name)
+                distance_landmarks = calcul_sommet_landmarks(ligne_sommet, nb_lm, d_s_L, d_L_s, d_t_L, d_L_t, d)
+                
+                dist_restante = max(distance_oiseau, distance_landmarks)
                 if newLabel.vector[0] + dist_restante> dist_max*(100+seuil)/100: 
                     if verbose:
-                        print("\t\tdistance totale trop grande !")
+                        print("\t\tDistance totale trop grande !")
                     continue
-                """
-                On abandonne cette idée pour l'instant
-                # Si on est sur un sommet du chemin optimal et que la distance parcourue > (1 + seuil/100)*sous-distance optimale, on n'exploite pas le label
-                if newLabel.vertex.name in chemins_opt[d]:
-                    print(f"\t\tdist opt = {chemins_opt[d][newLabel.vertex.name]}, a ne pas depasser = {(1 + seuil/100)*chemins_opt[d][newLabel.vertex.name]}")
-                    if newLabel.vector[0] > (1 + seuil/100)*chemins_opt[d][newLabel.vertex.name]:
-                        print("\t\tdistance du sous-chemin trop grande !")
-                        continue   
-                """  
                 
                 # Si le nouveau label n'est pas dominé par ceux dans la liste de voisins, on l'ajoute
                 if not newLabel.dominated_by_list(voisin.label_list[d]): 
                     voisin.addLabel(newLabel, d)
                     heapq.heappush(T[d], (newLabel.vector, newLabel.code, newLabel))
-                    nbLabelsT += 1
+                    
                     # Si la liste des labels dans l'autre direction n'est pas vide, combiner les chemins
                     if voisin.label_list[1-d] != []:
-                        # print("\tbizarre", voisin.name, voisin.label_list[1-d])
-                        for c in newLabel.combine(voisin.label_list[1-d], d, dist_max, seuil, chemins_opt[1-d], e.weight[0]):
+                        for c in newLabel.combine(voisin.label_list[1-d], d, dist_max):
                             addResults(c, Lres)
                 if verbose:
-                    afficher_lres(Lres)
-            # print("lres", Lres)
-            # print("apres", T[d])
+                    affiche_results(Lres)
             if verbose:
                 print("---")
 
         self.reset_labels()
-        if verbose:
-            print(f"\tNombre de labels explores : {nbLabelsT}")
+        #if verbose:
+        print(f"\tNombre de labels explores : {nbLabelsT}")
         return Lres 
 
-    def DijkstraMultiObjBidirectionnelSeuil(self, source: Vertex, dest: Vertex,condition_darret, seuil: float, heuris = None, nb_lm: int = 0) -> List: 
+    def AStarMultiObjBidirectionnelSeuil(self, source: Vertex, dest: Vertex, heuris, nb_lm: int, condition_darret, seuil: float, verbose: bool = False) -> List: 
         '''
-        Applique l'algorithme de Dijkstra multi-objectif bi-directionnel
+        Applique l'algorithme d'A* multi-objectif bi-directionnel
         pour récupérer l'ensemble des chemins Pareto-optimaux 
         allant du sommet source au sommet dest
         avec la longueur d'un chemin qui ne dépasse pas 100 + seuil % du chemin optimal (mono-objectif).
         
         :param source: sommet source
         :param dest: sommet destination
+        :param heuris: distances entre tous les points et les landmarks utilisées pour réduire l'exploration
+        :param nb_lm: nombre de landmarks
+        :param condition_darret: fonction de condition d'arret, renvoie True (s'il faut arreter) ou False
         :param seuil: pourcentages supplémentaires du chemin optimal 
-        :param heuris: fonction heuristique utilisée pour réduire l'exploration (si None, distance à vol d'oiseau) 
-        :param nb_lm: nombre de landmarks (si heuristique est celle des landmarks)
+        :param verbose: affiche des commentaires (True) ou rien (False)
         '''
-        # Appliquer Dijkstra en version mono-objectif (distance totale) pour récupérer le chemin de longueur minimale
+        # Appliquer A* en version mono-objectif (distance totale) pour récupérer le chemin de longueur minimale
         copie_graphe: Graph = self.copie()
 
         oriA = copie_graphe._index[source.name]
@@ -572,43 +603,22 @@ class Graph:
 
         for e in copie_graphe.edges: 
             e.weight = (e.weight[0], 'A')
+
         print("------------ APPEL MONO ---------------")
-        mono = copie_graphe.DijkstraMultiObjBidirectionnel(oriA, destA, condition_darret)
+        mono = copie_graphe.AStarMultiObjBidirectionnel(oriA, destA, heuris, nb_lm, condition_darret)
 
         if not mono: 
             return []
         
-        distance = mono[0][1][0] 
-        chemins_opt = [mono[0][2],mono[0][3]]
+        distance = mono[0][1][0]
+        if verbose:
+            print("Chemin optimal :", mono[0][0])
 
-        # Appliquer Dijkstra MO avec la distance à ne pas dépasser 
+        # Appliquer A* MO avec la distance à ne pas dépasser 
         distance_max: float = (1 + seuil/100) * distance 
         print("------------ APPEL BI ---------------")
-        return mono[0], self.DijkstraMultiObjBidirectionnel(source, dest,condition_darret, distance_max, chemins_opt, seuil, verbose=False, heuris=heuris, nb_lm=nb_lm)
+        return mono[0], self.AStarMultiObjBidirectionnel(source, dest, heuris, nb_lm, condition_darret, distance_max, seuil, verbose)
 
-    def save_to_json(self, filename: str):
-        '''
-        Enregistre un graphe sous format json.
-
-        :param filename: nom du fichier dans lequel sera enregistré le graphe
-        '''
-        data = {
-            "name": self.name,
-            "nbClasses": self.nbClasses,
-            "vertices": [v.name for v in self.vertices],
-            "edges": [
-                {
-                    "from": e.vertices[0].name,
-                    "to": e.vertices[1].name,
-                    "dist": e.weight[0],
-                    "classe": e.weight[1]
-                }
-                for e in self.edges
-            ]
-        }
-
-        with open(filename, "w") as f:
-            json.dump(data, f, indent=4)
 
 def load_from_json(filename: str):
     '''
@@ -653,7 +663,6 @@ def dominates_in_list(v, liste_v):
     '''
     return np.all(liste_v >= v, axis=1) & np.any(liste_v > v, axis=1)
 
-
 def dominated_in_list(v, liste_v):
     ''' 
     Renvoie un array de booleens : pour chaque vecteur de liste_v,
@@ -666,11 +675,11 @@ def dominated_in_list(v, liste_v):
 
 ### CONDITION D'ARRET DANS DIJKSTRA MO BD ###
 
-def stop(T, Lres,graph,dest):
+def stop(T: List[List[Label]], Lres: List[Tuple[List[str], List[float]]], graph = None, dest = None) -> bool:
     '''
-    Retourne True si Tmin est dominé par au moins un chemin de Lres,
-    False sinon.
-    (Dijkstra MO BD : boucle a arreter si True)
+    Arrête la recherche si Tmin (vecteur idéal) 
+    est déjà dominé par au moins un chemin de Lres.
+    (A* MO BD : boucle à arrêter si True)
     
     :param T: liste des labels temporaires
     :param Lres: liste des chemins Pareto-optimaux
@@ -690,10 +699,20 @@ def stop(T, Lres,graph,dest):
 
     Tmin = list(TminF + TminB)
     labTmin = Label(None, Tmin, None, -1)
-    Lres_labels = np.array([Label(None, vect, None, -1) for (_, vect,_ , _) in Lres])
+    Lres_labels = np.array([Label(None, vect, None, -1) for (_, vect) in Lres])
     return labTmin.dominated_by_list(Lres_labels) 
 
-def stop2(T, Lres,graph,dest):
+def stop2(T: List[List[Label]], Lres: List[Tuple[List[str], List[float]]], graph = None, dest = None) -> bool:
+    ''' 
+    Arrête la recherche si toutes les combinaisons possibles
+    (TminB + label foward)
+    sont déjà dominées par un chemin de Lres.
+    TminB est le vecteur idéal de la recherche arrière.
+    (A* MO BD : boucle à arrêter si True)
+    
+    :param T: liste des labels temporaires
+    :param Lres: liste des chemins Pareto-optimaux
+    '''
     TF, TB = T[0], T[1]
 
     if not TF or not TB:
@@ -704,7 +723,7 @@ def stop2(T, Lres,graph,dest):
 
     # Borne inférieure uniquement sur TB
     TminB = np.min(np.array([vecteur[0] for vecteur in TB]), axis=0)
-    Lres_labels = [Label(None, vect, None, -1) for (_, vect, _, _) in Lres]
+    Lres_labels = [Label(None, vect, None, -1) for (_, vect) in Lres]
 
     # Pour chaque label forward, vérifier si lF + TminB est dominé
     for (vect, _, _) in TF:
@@ -714,7 +733,19 @@ def stop2(T, Lres,graph,dest):
 
     return True
 
-def stop3(T, Lres, graph, dest):
+def stop3(T: List[List[Label]], Lres: List[Tuple[List[str], List[float]]], graph, dest) -> bool: 
+    ''' 
+    Arrête la recherche si toutes les combinaisons possibles
+    (TminB + label forward) - en prenant en compte la distance à vol d'oiseau - 
+    sont déjà dominées par un chemin de Lres.
+    TminB est le vecteur idéal de la recherche arrière.
+    (A* MO BD : boucle à arrêter si True)
+
+    :param T: liste des labels temporaires
+    :param Lres: liste des chemins Pareto-optimaux
+    :param graph: graphe avec distance_a_vol_d_oiseau(u, dest)
+    :param dest: sommet destination
+    '''
     TF, TB = T[0], T[1]
 
     if not TF or not TB:
@@ -724,7 +755,7 @@ def stop3(T, Lres, graph, dest):
         return False
 
     TminB = np.min(np.array([vecteur[0] for vecteur in TB]), axis=0)
-    Lres_labels = [Label(None, vect, None, -1) for (_, vect, _, _) in Lres]
+    Lres_labels = [Label(None, vect, None, -1) for (_, vect) in Lres]
 
     for (vect, _, lbl) in TF:
         # Crow-fly pour le 1er objectif (distance)
@@ -740,17 +771,18 @@ def stop3(T, Lres, graph, dest):
     return True
 
 
-def stop4(T, Lres, graph, dest):
-    """
+def stop4(T: List[List[Label]], Lres: List[Tuple[List[str], List[float]]], graph, dest) -> bool:
+    '''
     Arrête la recherche si toutes les combinaisons possibles
     (label forward + borne vol d'oiseau + label backward)
     sont déjà dominées par un chemin de Lres.
+    (A* MO BD : boucle à arrêter si True)
 
-    :param T: [TF, TB]
-    :param Lres: liste des chemins Pareto-optimaux trouvés
+    :param T: liste des labels temporaires
+    :param Lres: liste des chemins Pareto-optimaux
     :param graph: graphe avec distance_a_vol_d_oiseau(u, dest)
     :param dest: sommet destination
-    """
+    '''
     TF, TB = T[0], T[1]
 
     # Plus rien à explorer d'un côté
@@ -763,7 +795,7 @@ def stop4(T, Lres, graph, dest):
 
     Lres_labels = [
         Label(None, vect, None, -1)
-        for (_, vect, _, _) in Lres
+        for (_, vect) in Lres
     ]
 
     # Pour chaque combinaison forward/backward
@@ -795,12 +827,12 @@ def stop4(T, Lres, graph, dest):
 
 ### FONCTIONS LIEES AUX CHEMINS DANS DIJKSTRA MO BD ###
 
-def reconstruireChemin(chemin):
+def reconstruireChemin(chemin: Tuple[Label, Label, List[float]]) -> Tuple[List[str], List[float]]:
     '''
     Retourne un chemin reconstruit, i.e.
-    ([liste des sommets du chemin de source à destination], vecteur de coûts total, dictionnaire du détail du chemin avant, idem mais arrière)
+    (liste des noms des sommets du chemin de source à destination, vecteur de coût total)
     
-    :param chemin: (label depuis source, label depuis dest, vecteur de coûts total)
+    :param chemin: (label du chemin depuis source, label du chemin depuis dest, vecteur de coût total)
     '''
     depuis_ori, depuis_dest, vect = chemin
     
@@ -809,46 +841,53 @@ def reconstruireChemin(chemin):
     sommet = depuis_ori.vertex
     label_prec = depuis_ori.prev_label
     sommet_union = sommet.name
-    distance_ori = [(depuis_ori.vertex.name, depuis_ori.vector[0])]
     while label_prec != None:
         sommet = label_prec.vertex
         chemin_ori = [sommet.name] + chemin_ori
-        distance_ori.append((sommet.name,label_prec.vector[0]))
         label_prec = label_prec.prev_label
-    distance_ori.reverse()
 
     # Chemin jusqu'à destination
+    
     chemin_dest = []
     label_prec = depuis_dest.prev_label
-    distance_dest = [(depuis_dest.vertex.name, depuis_dest.vector[0])]
     while label_prec != None:
         sommet = label_prec.vertex
         chemin_dest = chemin_dest + [sommet.name]
-        distance_dest.append((sommet.name,label_prec.vector[0]))
         label_prec = label_prec.prev_label
 
-    chemin = chemin_ori + [sommet_union] + chemin_dest
-    return (chemin_ori, sommet_union, chemin_dest, vect, distance_ori, distance_dest)
-
-
-def addResults(path, liste_res) -> None: 
-    """
-    Reconstruit le chemin path et l'ajoute à liste_res s'il n'est pas dominé par un chemin de liste_res.
-
-    :param path: chemin à ajouter (depuis_ori, depuis_dest, vecteur cout)
-    :param liste_res: liste des chemins (liste_sommets, vecteur cout) déjà découverts
-    """
-    chemin_ori, sommet_union, chemin_dest, vec, distance_ori, distance_dest = reconstruireChemin(path)
     liste_sommets = chemin_ori + [sommet_union] + chemin_dest
+
+    return (liste_sommets, vect)
+
+def inclusion_avec_ratio(list1: List, list2: List) -> int: # pour rejetter des chemins qui se ressemblent bcp trop (sûrement les mêmes)
+    ''' 
+    Retourne le ratio du nombre d'éléments sur le nombre d'éléments 
+    de la plus petite des deux listes.
+
+    :param list1: liste 1
+    :param list2: liste 2
+    '''
+    set1 = set(list1)
+    set2 = set(list2)
+    return len(set1 & set2) / min(len(set1), len(set2))
+
+def addResults(chemin: Tuple[Label, Label, List[float]], liste_res: List[Tuple[List[str], List[float]]], weight_vertices = None) -> None:
+    """
+    Reconstruit un chemin et l'ajoute à liste_res s'il n'est pas dominé par un chemin de liste_res.
+
+    :param chemin: chemin à ajouter (label du chemin depuis la source, label du chemin depuis la destination, vecteur de coût)
+    :param liste_res: liste des chemins (liste_sommets, vecteur de coût) déjà découverts
+    """
+    liste_sommets, vec = reconstruireChemin(chemin)
     a_retirer = []
 
     # Pour tout chemin r dans Lres
     for r in liste_res:
         # chemin, vecTemp, liste avant, liste arriere
-        liste_sommetsTemp, vecTemp,_,_ = r
+        liste_sommetsTemp, vecTemp = r
 
         # Chemin déjà dans liste_res
-        if liste_sommetsTemp == liste_sommets:
+        if inclusion_avec_ratio(liste_sommets, liste_sommetsTemp) >= 0.9 or np.all(np.isclose(vecTemp, vec)) == True: 
             return
 
         # Si le chemin est dominé par le nouveau chemin path, on retire r
@@ -862,25 +901,8 @@ def addResults(path, liste_res) -> None:
     for ar in a_retirer:
         liste_res.remove(ar)
 
-    # Conserver les distances cumulees pour les sous-chemins (seuil par etape) 
-    distance_avant = [0]
-    for i in range(1, len(distance_dest)):
-        distance_avant.append(distance_dest[i-1][1]-distance_dest[i][1])
-    distance_avant_cum =  np.cumsum(distance_avant)
-    distance_avant_fin = [(distance_dest[i][0], int(distance_avant_cum[i]) + distance_ori[-1][1]) for i in range(len(distance_avant_cum))]
-    chemin_avant = distance_ori + distance_avant_fin[1:]
-    dico_avant = {t[0]:t[1] for t in chemin_avant}
 
-    distance_arriere = [0]
-    for i in range(len(distance_ori)-2,-1,-1):
-        distance_arriere.append(distance_ori[i+1][1]-distance_ori[i][1])
-    distance_arriere_cum =  list(np.cumsum(distance_arriere))
-    distance_arriere_cum.reverse()
-    distance_arriere_fin = [(distance_ori[i][0], int(distance_arriere_cum[i]) + distance_dest[0][1]) for i in range(len(distance_arriere_cum))]
-    chemin_arriere = distance_arriere_fin[:-1] + distance_dest
-    dico_arriere = {t[0]:t[1] for t in chemin_arriere}
-
-    liste_res.append((liste_sommets, vec, dico_avant, dico_arriere))  
+    liste_res.append((liste_sommets, vec))  
 
 ### FONCTIONS LIEES AUX LANDMARKS DANS DIJKSTRA MO BD ###
 
@@ -914,64 +936,65 @@ def calcul_st(df, source: Vertex, dest: Vertex, nb_lm: int):
     rt = df.loc[dest.name].values
     return rs, rt
 
-def calcul_sommet_landmarks(v, nb_lm: int, aL, La, d) -> float:
+def calcul_sommet_landmarks(v, nb_lm: int, d_s_L, d_L_s, d_t_L, d_L_t, direction: int) -> float:
     ''' 
-    Retourne la distance maximale entre tous les landmarks L
-    parmi max (sL - vL, Lt - Lv)  pour le sommet v
+    Retourne la borne inférieure avec les landmarks pour le sommet v.
+
+    Pour tout landmark L, 
+    Forward : 
+        d(v->t) >= d(L->t) - d(L->v)
+        d(v->t) >= d(v->L) - d(t->L)
+    Backward : 
+        d(v->s)inv >= d(L->s)inv - d(L->v)inv, soit d(s->v) >= d(s->L) - d(v->L)
+        d(v->s)inv >= d(v->L)inv - d(s->L)inv, soit d(s->v) >= d(L->v) - d(L->s)
+    
+    On prend le max de toutes ces distances. 
+
     :param v: array des distances entre un sommet donné et les landmarks (forward, backward)
-    :param nb_lm: nombre de landmarks 
-    :param aL: array des distances entre la source et les landmarks
-    :param La: array des distances entre les landmarks et la destination
+    :param nb_lm: nombre de landmarks s
+    :param direction: direction (forward : 0, backward : 1)
     '''
     d_v_L = v[:nb_lm]    # distances de v vers landmarks 
     d_L_v = v[nb_lm:]    # distances des landmarks vers v 
 
-    if d == 0:
-        diff1 = La - d_L_v 
-        diff2 = d_v_L - aL 
-    else:
-        diff1 = aL - d_v_L 
-        diff2 = d_L_v - La  
-    '''
-    valid1 = np.isfinite(diff1)
-    valid2 = np.isfinite(diff2)
+    diff1 = d_L_t - d_L_v if direction == 0 else d_s_L - d_v_L 
+    diff2 = d_v_L - d_t_L if direction == 0 else d_L_v - d_L_s  
     
-    vals = []
-
-    if valid1.any():
-        vals.append(diff1[valid1])
-    if valid2.any():
-        vals.append(diff2[valid2])
-
-    if not vals:
-        return 0
-    '''
     return np.nanmax(np.concatenate([diff1,diff2]))
 
 
-### AFFICHER LES RESULTATS DE LRES DANS DIJKSTRA MO BD ###
+### AFFICHER LES RESULTATS DANS A* MO BD ###
 
-def affiche_results(lres: List) -> None:
+def affiche_results(lres: List[Tuple[List[str], List[float]]]) -> None:
     ''' 
     Affiche les chemins contenus dans lres de la forme suivante : 
     Chemin i = V1 -(2)-> V4 -(5)-> V7 | secu <= A : 7, secu <= B : 5, secu <= C : 2
 
-    :param lres: liste des resultats telle que renvoye par DijkstraMultiObjBidirectionnel
+    :param lres: liste des résultats telle que renvoyée par AStarMultiObjBidirectionnel
     '''
-    j = 1
-    
-    for chemin, vect, chemin_avant, _ in lres:
+    j: int = 1
+        
+    for j, (chemin, vect) in enumerate(lres, 1):
         res = f"Chemin {j} : "
-        for i in range(len(chemin)-1):
-            sommet = chemin[i]
-            sommet_suiv = chemin[i+1]
-            res += sommet + " -(" + str(chemin_avant[sommet_suiv]-chemin_avant[sommet]) + ")-> "
+        for i in range(len(chemin) - 1):
+            res += chemin[i] + " -> "
         res += chemin[-1] + " | "
+        res += f"distance totale : {vect[0]}, "
         for k in range(len(vect)):
-            res += f"secu <= {chr(ord('A') + k)} : " + str(vect[k]) + ", "
-        j += 1
+            res += f"km classe {chr(ord('A') + k)} : {vect[k]}, "
         print(res[:-2])
 
+def afficher_T(T: List[List[Label]], d: int) -> None:
+    ''' 
+    Affiche la liste des labels temporaires d'une direction donnée.
+
+    :param T: liste des labels temporaires
+    :param d: direction (0 : forward, 1 : backward)
+    '''
+    res = f"T[{d}] =\n" 
+    for t in T[d]:
+        res += f"\t{t[2].vertex.name} : {[int(x) for x in t[0]]}, code = {t[2].code}\n"
+    print(res)
 
 ### GENERATION DE GRAPHES ALEATOIRES ###
     
@@ -999,15 +1022,3 @@ def generate_random_graph(name: str, nbVertex: int, probaEdge: float, nbClasses:
 
     return G
 
-def afficher_T(T,d):
-    res = f"T[{d}] =\n" 
-    for t in T[d]:
-        res += f"\t{t[2].vertex.name} : {[int(x) for x in t[0]]}, code = {t[2].code}\n"
-    
-    print(res)
-
-def afficher_lres(lres):
-    res = "\t\tLres =\n"
-    for liste_sommets, vec, _, _ in lres:
-        res += f"\t\t\tchemin : {liste_sommets}, cout = {vec}\n"
-    print(res)
