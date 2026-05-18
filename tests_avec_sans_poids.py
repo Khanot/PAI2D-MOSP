@@ -10,17 +10,17 @@ import graph_commente1 as gc
 NB_LANDMARKS = 40
 
 # Charger le graphe
-GC = gc.load_from_json("GrapheParisCHG.json")
+GC = gc.load_from_json("graphes/GrapheParis3C.json")
 
 # Récupération des landmarks 
-df = gc.read_landmarks_file("distances_landmarks_CHG.csv")
+df = gc.read_landmarks_file("distances_landmarks_Paris3C.csv")
 df = df.set_index('vertex_name')
 columns = [f"0:L{i}" for i in range(NB_LANDMARKS)] + [f"1:L{i}" for i in range(NB_LANDMARKS)]
 df = df[columns]
 for c in columns:
     df[c] = df[c].astype("float16") # réduction de la taille des types pour potentiellement accélerer les calculs ?
 
-GPR = gpr.load_from_json("GrapheParisCHG.json")
+GPR = gpr.load_from_json("graphes/GrapheParis3C.json")
 
 # Fonctions
 type_graphes = {
