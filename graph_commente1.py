@@ -50,7 +50,7 @@ class Vertex:
     def addLabel(self, label, direction: int) -> None: 
         '''
         Ajoute un label à la liste des labels du sommet et supprime les anciens labels qui sont dominés.
-        (Dijkstra MO bi-directionnel)
+        (A* MO bi-directionnel)
         
         :param label: label (noeud courant, vecteur de coûts, label précédent)
         :param direction: forward (0) ou backward (1)
@@ -484,7 +484,7 @@ class Graph:
 
     def AStarMultiObjBidirectionnel(self, source: Vertex, dest: Vertex, heuris, nb_lm: int, condition_darret = None, dist_max: float = math.inf, seuil: float = math.inf, verbose = False) -> List:
         '''
-        Applique l'algorithme de Dijkstra multi-objectif bi-directionnel
+        Applique l'algorithme de A* multi-objectif bi-directionnel
         pour récupérer l'ensemble des chemins Pareto-optimaux 
         allant du sommet source au sommet dest.
         
@@ -673,7 +673,7 @@ def dominated_in_list(v, liste_v):
     '''
     return np.all(liste_v <= v, axis=1) & np.any(liste_v < v, axis=1)
 
-### CONDITION D'ARRET DANS DIJKSTRA MO BD ###
+### CONDITION D'ARRET DANS A* MO BD ###
 
 def stop(T: List[List[Label]], Lres: List[Tuple[List[str], List[float]]], graph = None, dest = None) -> bool:
     '''
@@ -825,7 +825,7 @@ def stop4(T: List[List[Label]], Lres: List[Tuple[List[str], List[float]]], graph
     return True
 
 
-### FONCTIONS LIEES AUX CHEMINS DANS DIJKSTRA MO BD ###
+### FONCTIONS LIEES AUX CHEMINS DANS A* MO BD ###
 
 def reconstruireChemin(chemin: Tuple[Label, Label, List[float]]) -> Tuple[List[str], List[float]]:
     '''
@@ -904,7 +904,7 @@ def addResults(chemin: Tuple[Label, Label, List[float]], liste_res: List[Tuple[L
 
     liste_res.append((liste_sommets, vec))  
 
-### FONCTIONS LIEES AUX LANDMARKS DANS DIJKSTRA MO BD ###
+### FONCTIONS LIEES AUX LANDMARKS DANS A* MO BD ###
 
 def read_landmarks_file(csvname: str):
     '''
