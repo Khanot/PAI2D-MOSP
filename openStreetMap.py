@@ -102,7 +102,7 @@ G_osm = ox.graph_from_place("Paris, France", network_type="bike")
 
 G_custom = convert_osmnx_to_custom_graph(G_osm, nbClasses=3)
 
-G_custom.save_to_json("GrapheParis.json")
+G_custom.save_to_json("GrapheParis3C.json")
 
 # Test chemin
 """
